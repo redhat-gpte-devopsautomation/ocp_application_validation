@@ -54,6 +54,7 @@ ocp_application_validation_list:
         namespace: jenkins
         onfail: ignore
       - kind: Route
+        api_version: route.openshift.io/v1
         name: jenkins
         namespace: jenkins
         onfail: ignore
