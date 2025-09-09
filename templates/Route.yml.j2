@@ -19,16 +19,26 @@
   register: _r_validate_universal
   retries: "{{ _validate.retries | default(30) }}"
   delay: "{{ _validate.delay | default(5) }}"
-  until:
-    - _r_validate_universal.resources | length > 0
 
-- name: "Success - set fact"
-  when: not _r_validate_universal.failed | bool
+# Debug output to see what we actually got
+- name: "Debug - Show route discovery results"
+  debug:
+    msg: |
+      Route discovery results for namespace {{ _validate.namespace | default('all') }}:
+      - Failed: {{ _r_validate_universal.failed | default(false) }}
+      - Resources found: {{ _r_validate_universal.resources | default([]) | length }}
+      - Resources: {{ _r_validate_universal.resources | default([]) | map(attribute='metadata.name') | list if _r_validate_universal.resources is defined else 'None' }}
+
+- name: "Success - routes found"
+  when: 
+    - not _r_validate_universal.failed | bool
+    - _r_validate_universal.resources | default([]) | length > 0
   set_fact:
     success: true
 
-- name: "No Success - set fact"
-  when: _r_validate_universal.failed | bool
+- name: "No Success - no routes found"
+  when: 
+    - _r_validate_universal.failed | bool or (_r_validate_universal.resources | default([]) | length == 0)
   set_fact:
     success: false
 
@@ -54,7 +64,7 @@
 - name: "[{{ _login.cluster.name |d('Cluster')}}][Route] Testing HTTP accessibility"
   when: 
     - not _r_validate_universal.failed | bool
-    - _r_validate_universal.resources | length > 0
+    - _r_validate_universal.resources | default([]) | length > 0
   ignore_errors: true
   uri:
     {% raw %}

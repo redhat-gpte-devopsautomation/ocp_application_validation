@@ -31,18 +31,18 @@ ads_validation_config:
 
       # ArgoCD (tssc-gitops) validation
       - kind: Route
-        namespace: "{{ ocp_application_validation_argocd_namespace }}"
+        namespace: tssc-gitops
         retries: 30
         delay: 10
 
       - kind: Application
-        namespace: "{{ ocp_application_validation_argocd_namespace }}"
+        namespace: tssc-gitops
         retries: 30
         delay: 10
 
       - kind: Secret
-        name: "{{ ocp_application_validation_argocd_admin_secret }}"
-        namespace: "{{ ocp_application_validation_argocd_namespace }}"
+        name: tssc-gitops-cluster
+        namespace: tssc-gitops
         retries: 10
         delay: 5
 
