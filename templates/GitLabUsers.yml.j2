@@ -26,6 +26,7 @@
         - not _r_gitlab_route.failed | default(true)
         - _r_gitlab_secret.resources | length > 0
         - _r_gitlab_route.resources | length > 0
+        - _r_gitlab_secret.resources[0].data is defined
         - _r_gitlab_secret.resources[0].data.GITLAB_ROOT_PASSWORD is defined
       uri:
         {% raw %}
@@ -64,6 +65,10 @@
         - not _r_gitlab_users_api.failed | default(true)
         - _r_gitlab_users_api.json is defined
         - _r_gitlab_users_api.json | length > 1
+        - _r_gitlab_secret.resources | length > 0
+        - _r_gitlab_secret.resources[0].data is defined
+        - _r_gitlab_secret.resources[0].data.GITLAB_ROOT_PASSWORD is defined
+        - _r_gitlab_route.resources | length > 0
       uri:
         {% raw %}
         url: "{{ (_r_gitlab_route.resources[0].spec.tls is defined) | ternary('https', 'http') }}://{{ _r_gitlab_route.resources[0].spec.host }}/api/v4/projects?simple=true&per_page=100"
