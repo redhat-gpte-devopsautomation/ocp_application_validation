@@ -2,13 +2,7 @@
 # Intelligent Route validation - auto-discovers routes and tests HTTP accessibility
 - name: "[{{ _login.cluster.name |d('Cluster')}}][Route] Discovering routes in {{ _validate.namespace | default('all namespaces') }}"
   ignore_errors: true
-  k8s_info:
-    {% raw %}
-    host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
-    username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
-    api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
-    {% endraw -%}
-    validate_certs: false
+  kubernetes.core.k8s_info:
     api_version: route.openshift.io/v1
     kind: Route
 {% if _validate.name is defined %}

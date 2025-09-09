@@ -2,13 +2,7 @@
 # Intelligent StatefulSet validation - checks existence, ready replicas, and ordered deployment
 - name: "[{{ _login.cluster.name |d('Cluster')}}][StatefulSet] Checking {{ _validate.name | default('statefulsets') }} in {{ _validate.namespace | default('all namespaces') }}"
   ignore_errors: true
-  k8s_info:
-    {% raw %}
-    host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
-    username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
-    api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
-    {% endraw -%}
-    validate_certs: false
+  kubernetes.core.k8s_info:
     kind: StatefulSet
 {% if _validate.name is defined %}
     name: "{{ _validate.name }}"

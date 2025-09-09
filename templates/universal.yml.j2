@@ -1,7 +1,7 @@
 ---
 - name: "[{{ _login.cluster.name |d('Cluster')}}][{{ _validate.kind }}]=> checking {{ _validate.name | d('') }}"
   ignore_errors: true
-  k8s_info:
+  kubernetes.core.k8s_info:
 {% if _validate.api_version is defined %}
     api_version: "{{ _validate.api_version }}"
 {% elif _validate.kind == 'ManagedCluster' %}
@@ -29,12 +29,6 @@
 {% elif _validate.kind == 'Keycloak' %}
     api_version: keycloak.org/v1alpha1
 {% endif %}
-    {% raw %}
-    host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
-    username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
-    api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
-    {% endraw -%}
-    validate_certs: false
     kind: "{{ _validate.kind }}"
     name: "{{ _validate.name | default(omit) }}"
     namespace: "{{ _validate.namespace | default(omit) }}"

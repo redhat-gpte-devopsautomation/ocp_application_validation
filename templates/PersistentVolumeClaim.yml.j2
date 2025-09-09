@@ -2,13 +2,7 @@
 # Intelligent PersistentVolumeClaim validation - checks existence and binding status
 - name: "[{{ _login.cluster.name |d('Cluster')}}][PVC] Checking {{ _validate.name | default('PVCs') }} in {{ _validate.namespace | default('all namespaces') }}"
   ignore_errors: true
-  k8s_info:
-    {% raw %}
-    host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
-    username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
-    api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
-    {% endraw -%}
-    validate_certs: false
+  kubernetes.core.k8s_info:
     kind: PersistentVolumeClaim
 {% if _validate.name is defined %}
     name: "{{ _validate.name }}"
