@@ -1,0 +1,106 @@
+---
+# GitLab Users validation - verifies users are created via GitLab API
+- name: "[{{ _login.cluster.name |d('Cluster')}}][GitLabUsers] Validating GitLab users in {{ _validate.namespace }}"
+  block:
+    - name: "Get GitLab root password from secret"
+      kubernetes.core.k8s_info:
+        {% raw %}
+        host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
+        username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
+        api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
+        {% endraw -%}
+        validate_certs: false
+        kind: Secret
+        name: "{{ _validate.secret_name }}"
+        namespace: "{{ _validate.namespace }}"
+      register: _r_gitlab_secret
+      ignore_errors: true
+
+    - name: "Get GitLab route for API endpoint"
+      kubernetes.core.k8s_info:
+        {% raw %}
+        host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
+        username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
+        api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
+        {% endraw -%}
+        validate_certs: false
+        api_version: route.openshift.io/v1
+        kind: Route
+        name: "{{ _validate.route_name }}"
+        namespace: "{{ _validate.namespace }}"
+      register: _r_gitlab_route
+      ignore_errors: true
+
+    - name: "Validate GitLab users via API"
+      when: 
+        - not _r_gitlab_secret.failed | default(true)
+        - not _r_gitlab_route.failed | default(true)
+        - _r_gitlab_secret.resources | length > 0
+        - _r_gitlab_route.resources | length > 0
+        - _r_gitlab_secret.resources[0].data.GITLAB_ROOT_PASSWORD is defined
+      uri:
+        {% raw %}
+        url: "{{ (_r_gitlab_route.resources[0].spec.tls is defined) | ternary('https', 'http') }}://{{ _r_gitlab_route.resources[0].spec.host }}/api/v4/users"
+        {% endraw -%}
+        method: GET
+        headers:
+          {% raw %}
+          Authorization: "Bearer {{ _r_gitlab_secret.resources[0].data.GITLAB_ROOT_PASSWORD | b64decode }}"
+          {% endraw -%}
+        validate_certs: false
+        return_content: true
+        status_code: [200]
+        timeout: 30
+      register: _r_gitlab_users_api
+      ignore_errors: true
+      retries: "{{ _validate.retries | default(3) }}"
+      delay: "{{ _validate.delay | default(10) }}"
+
+    - name: "Success - GitLab users found"
+      when: 
+        - not _r_gitlab_users_api.failed | default(true)
+        - _r_gitlab_users_api.json is defined
+        - _r_gitlab_users_api.json | length > 1
+      set_fact:
+        success: true
+
+    - name: "No Success - GitLab user validation failed"
+      when: 
+        - _r_gitlab_users_api.failed | default(true) or (_r_gitlab_users_api.json | default([]) | length <= 1)
+      set_fact:
+        success: false
+
+    - name: "Display GitLab users validation result"
+      debug:
+        msg: |
+          GitLab User Validation Results:
+          {% if _r_gitlab_secret.failed | default(true) %}
+          - Secret Access: FAILED ({{ _r_gitlab_secret.msg | default('Secret not found') }})
+          {% elif _r_gitlab_route.failed | default(true) %}
+          - Route Access: FAILED ({{ _r_gitlab_route.msg | default('Route not found') }})
+          {% elif _r_gitlab_users_api.failed | default(true) %}
+          - API Call: FAILED ({{ _r_gitlab_users_api.msg | default('API call failed') }})
+          {% else %}
+          - API Call: SUCCESS
+          - Total Users: {{ _r_gitlab_users_api.json | length }}
+          - Non-Root Users: {{ (_r_gitlab_users_api.json | rejectattr('username', 'equalto', 'root') | list | length) }}
+          - User List: {{ _r_gitlab_users_api.json | map(attribute='username') | list | join(', ') }}
+          {% endif %}
+
+    - name: "set log message"
+      set_fact:
+        log_message: "GitLab users validation in {{ _validate.namespace }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+    - name: "GitLab users validation result"
+      debug:
+        msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+    - name: "GitLab users validation result"
+      assert:
+        that: success | default(false) | bool
+        {% raw %}
+        fail_msg: "[ {{ log_message }} : FAIL ]"
+        success_msg: "[ {{ log_message }} : PASS ]"
+        {% endraw %}
+{% endif %}

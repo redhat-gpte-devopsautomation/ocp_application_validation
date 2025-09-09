@@ -48,6 +48,22 @@ ocp_application_validation_list:
         name: gitlab-postgresql
         namespace: gitlab
         onfail: ignore
+      - kind: Secret
+        name: gitlab-secret
+        namespace: gitlab
+        onfail: ignore
+
+      # User Management Validation
+      - kind: GitLabUsers
+        namespace: gitlab
+        secret_name: gitlab-secret
+        route_name: gitlab
+        onfail: ignore
+      - kind: KeycloakUsers
+        namespace: tssc-keycloak
+        route_name: keycloak
+        realm: ADS
+        onfail: ignore
 
       # Jenkins validation
       - kind: Deployment

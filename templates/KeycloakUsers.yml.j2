@@ -1,0 +1,114 @@
+---
+# Keycloak Users validation - verifies users are created via Keycloak API
+- name: "[{{ _login.cluster.name |d('Cluster')}}][KeycloakUsers] Validating Keycloak users in {{ _validate.namespace }}"
+  block:
+    - name: "Get Keycloak route for API endpoint"
+      kubernetes.core.k8s_info:
+        {% raw %}
+        host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
+        username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
+        api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
+        {% endraw -%}
+        validate_certs: false
+        api_version: route.openshift.io/v1
+        kind: Route
+        name: "{{ _validate.route_name }}"
+        namespace: "{{ _validate.namespace }}"
+      register: _r_keycloak_route
+      ignore_errors: true
+
+    - name: "Get Keycloak admin token"
+      when: 
+        - not _r_keycloak_route.failed | default(true)
+        - _r_keycloak_route.resources | length > 0
+      uri:
+        {% raw %}
+        url: "{{ (_r_keycloak_route.resources[0].spec.tls is defined) | ternary('https', 'http') }}://{{ _r_keycloak_route.resources[0].spec.host }}/auth/realms/master/protocol/openid-connect/token"
+        {% endraw -%}
+        method: POST
+        body_format: form-urlencoded
+        body:
+          grant_type: password
+          username: admin
+          password: "{{ common_password | default('changeme') }}"
+          client_id: admin-cli
+        validate_certs: false
+        return_content: true
+        status_code: [200]
+        timeout: 30
+      register: _r_keycloak_token
+      ignore_errors: true
+      retries: "{{ _validate.retries | default(3) }}"
+      delay: "{{ _validate.delay | default(10) }}"
+
+    - name: "Get users from Keycloak realm"
+      when: 
+        - not _r_keycloak_token.failed | default(true)
+        - _r_keycloak_token.json is defined
+        - _r_keycloak_token.json.access_token is defined
+      uri:
+        {% raw %}
+        url: "{{ (_r_keycloak_route.resources[0].spec.tls is defined) | ternary('https', 'http') }}://{{ _r_keycloak_route.resources[0].spec.host }}/auth/admin/realms/{{ _validate.realm | default('ADS') }}/users"
+        {% endraw -%}
+        method: GET
+        headers:
+          {% raw %}
+          Authorization: "Bearer {{ _r_keycloak_token.json.access_token }}"
+          {% endraw -%}
+        validate_certs: false
+        return_content: true
+        status_code: [200]
+        timeout: 30
+      register: _r_keycloak_users_api
+      ignore_errors: true
+      retries: "{{ _validate.retries | default(3) }}"
+      delay: "{{ _validate.delay | default(10) }}"
+
+    - name: "Success - Keycloak users found"
+      when: 
+        - not _r_keycloak_users_api.failed | default(true)
+        - _r_keycloak_users_api.json is defined
+        - _r_keycloak_users_api.json | length > 0
+      set_fact:
+        success: true
+
+    - name: "No Success - Keycloak user validation failed"
+      when: 
+        - _r_keycloak_users_api.failed | default(true) or (_r_keycloak_users_api.json | default([]) | length == 0)
+      set_fact:
+        success: false
+
+    - name: "Display Keycloak users validation result"
+      debug:
+        msg: |
+          Keycloak User Validation Results:
+          {% if _r_keycloak_route.failed | default(true) %}
+          - Route Access: FAILED ({{ _r_keycloak_route.msg | default('Route not found') }})
+          {% elif _r_keycloak_token.failed | default(true) %}
+          - Token Request: FAILED ({{ _r_keycloak_token.msg | default('Authentication failed') }})
+          {% elif _r_keycloak_users_api.failed | default(true) %}
+          - API Call: FAILED ({{ _r_keycloak_users_api.msg | default('API call failed') }})
+          {% else %}
+          - API Call: SUCCESS
+          - Realm: {{ _validate.realm | default('ADS') }}
+          - Total Users: {{ _r_keycloak_users_api.json | length }}
+          - User List: {{ _r_keycloak_users_api.json | map(attribute='username') | list | join(', ') }}
+          {% endif %}
+
+    - name: "set log message"
+      set_fact:
+        log_message: "Keycloak users validation in realm {{ _validate.realm | default('ADS') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+    - name: "Keycloak users validation result"
+      debug:
+        msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+    - name: "Keycloak users validation result"
+      assert:
+        that: success | default(false) | bool
+        {% raw %}
+        fail_msg: "[ {{ log_message }} : FAIL ]"
+        success_msg: "[ {{ log_message }} : PASS ]"
+        {% endraw %}
+{% endif %}
