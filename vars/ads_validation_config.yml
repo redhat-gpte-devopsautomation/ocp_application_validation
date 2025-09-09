@@ -8,6 +8,9 @@ ocp_application_validation_auth_type: rhbk
 # ADS uses Keycloak in tssc-keycloak namespace
 ocp_application_validation_keycloak_namespace: tssc-keycloak
 ocp_application_validation_keycloak_realm: ADS
+# ArgoCD configuration for GitOps validation
+ocp_application_validation_argocd_namespace: tssc-gitops
+ocp_application_validation_argocd_admin_secret: tssc-gitops-cluster
 # Common password for ADS components (override with -e common_password=yourpassword)
 common_password: "{{ common_password | default('changeme') }}"
 
@@ -72,36 +75,50 @@ ads_validation_config:
       # ArgoCD server deployment
       - kind: Deployment
         name: argocd-server
-        namespace: tssc-gitops
+        namespace: "{{ ocp_application_validation_argocd_namespace }}"
         conditions:
           - _r_validate_universal.resources | length > 0
           - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
         retries: 60
         delay: 15
 
-      # ArgoCD route accessibility (checks if route responds - 401/403 means auth is working)
+      # ArgoCD admin secret exists
+      - kind: Secret
+        name: "{{ ocp_application_validation_argocd_admin_secret }}"
+        namespace: "{{ ocp_application_validation_argocd_namespace }}"
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].data.password is defined
+        retries: 30
+        delay: 10
+
+      # ArgoCD route accessibility
       - kind: Route
         name: argocd-server
-        namespace: tssc-gitops
+        namespace: "{{ ocp_application_validation_argocd_namespace }}"
         status_code: [200, 302, 401, 403]
         retries: 30
         delay: 10
-        
-      # TODO: Add authentication validation by getting password from argocd-initial-admin-secret
-      # - kind: Secret
-      #   name: argocd-initial-admin-secret
-      #   namespace: tssc-gitops
 
       # ArgoCD custom resource
       - kind: ArgoCD
         name: argocd
-        namespace: tssc-gitops
+        namespace: "{{ ocp_application_validation_argocd_namespace }}"
         api_version: argoproj.io/v1alpha1
         conditions:
           - _r_validate_universal.resources | length > 0
           - _r_validate_universal.resources[0].status.phase | default('') == 'Available'
         retries: 90
         delay: 15
+
+      # ArgoCD Applications - check if they exist and are synced
+      - kind: Application
+        namespace: "{{ ocp_application_validation_argocd_namespace }}"
+        api_version: argoproj.io/v1alpha1
+        conditions:
+          - _r_validate_universal.resources | length > 0
+        retries: 30
+        delay: 10
 
   # GitLab validation
   - cluster:

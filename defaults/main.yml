@@ -26,6 +26,9 @@ ocp_application_validation_keycloak_realm: workshop
 ocp_application_validation_gitlab_namespace: gitlab
 ocp_application_validation_rhdh_namespace: rhdh
 ocp_application_validation_technology: generic
+# ArgoCD configuration for GitOps validation
+ocp_application_validation_argocd_namespace: openshift-gitops
+ocp_application_validation_argocd_admin_secret: openshift-gitops-cluster
 
 ##------------------------------------------##
 ## Available options    
