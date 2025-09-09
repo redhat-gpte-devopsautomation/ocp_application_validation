@@ -3,14 +3,6 @@
 # Uses the existing ocp_application_validation framework
 
 # ADS lab configuration
-ocp_application_validation_technology: rhads
-ocp_application_validation_auth_type: rhbk
-# ADS uses Keycloak in tssc-keycloak namespace
-ocp_application_validation_keycloak_namespace: tssc-keycloak
-ocp_application_validation_keycloak_realm: ADS
-# ArgoCD configuration for GitOps validation
-ocp_application_validation_argocd_namespace: tssc-gitops
-ocp_application_validation_argocd_admin_secret: tssc-gitops-cluster
 # Common password for ADS components (override with -e common_password=yourpassword)
 common_password: "{{ common_password | default('changeme') }}"
 
