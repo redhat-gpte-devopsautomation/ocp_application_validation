@@ -1,0 +1,54 @@
+---
+# Showroom validation - discovers showroom* routes and validates lab content
+- name: "[{{ _login.cluster.name |d('Cluster')}}][Showroom] Discovering showroom routes cluster-wide"
+  ignore_errors: true
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+  register: _r_validate_universal
+  retries: "{{ _validate.retries | default(30) }}"
+  delay: "{{ _validate.delay | default(5) }}"
+
+- name: "Filter showroom routes"
+  set_fact:
+    _showroom_routes: "{{ '{{' }} _r_validate_universal.resources | default([]) | selectattr('metadata.name', 'match', '^showroom.*') | list {{ '}}' }}"
+  when: not _r_validate_universal.failed | bool
+
+# Debug output to see what showroom routes we found
+- name: "Debug - Show showroom route discovery results"
+  debug:
+    msg: |
+      Showroom route discovery results:
+      - Failed: {{ '{{' }} _r_validate_universal.failed | default(false) {{ '}}' }}
+      - Total routes found: {{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }}
+      - Showroom routes found: {{ '{{' }} _showroom_routes | default([]) | length {{ '}}' }}
+      - Showroom route names: {{ '{{' }} _showroom_routes | default([]) | map(attribute='metadata.name') | list {{ '}}' }}
+
+- name: "Success - showroom routes found"
+  when: 
+    - not _r_validate_universal.failed | bool
+    - _showroom_routes | default([]) | length > 0
+  set_fact:
+    success: true
+
+- name: "No Success - no showroom routes found"
+  when: 
+    - _r_validate_universal.failed | bool or (_showroom_routes | default([]) | length == 0)
+  set_fact:
+    success: false
+
+- name: "set log message"
+  set_fact:
+    log_message: "Showroom routes discovery in {{ _validate.namespace | default('cluster') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "Showroom validation result"
+  debug:
+    msg: "[ {{ '{{' }} log_message {{ '}}' }} : {% if success %}PASS{% else %}FAIL{% endif %} ]"
+{% else %}
+- name: "Showroom validation result"
+  assert:
+    that: success | default(false) | bool
+    fail_msg: "[ {{ '{{' }} log_message {{ '}}' }} : FAIL ]"
+    success_msg: "[ {{ '{{' }} log_message {{ '}}' }} : PASS ]"
+{% endif %}
