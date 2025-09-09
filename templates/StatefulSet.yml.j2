@@ -4,9 +4,9 @@
   ignore_errors: true
   k8s_info:
     {% raw %}
-    host: "{{ _r_auth_cluster.k8s_auth.host | default(omit) }}"
-    username: "{{ _r_auth_cluster.k8s_auth.username | default(omit) }}"
-    api_key: "{{ _r_auth_cluster.k8s_auth.api_key | default(omit) }}"
+    host: "{{ (_r_auth_cluster.k8s_auth.host | default('')) if _r_auth_cluster is defined else omit }}"
+    username: "{{ (_r_auth_cluster.k8s_auth.username | default('')) if _r_auth_cluster is defined else omit }}"
+    api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
     {% endraw -%}
     validate_certs: false
     kind: StatefulSet
