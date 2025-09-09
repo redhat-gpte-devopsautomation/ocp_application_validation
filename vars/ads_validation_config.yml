@@ -71,7 +71,7 @@ ocp_application_validation_list:
 
       # Red Hat Developer Hub validation
       - kind: Deployment
-        name: developer-hub
+        name: backstage-developer-hub
         namespace: tssc-dh
         onfail: ignore
       - kind: Route
