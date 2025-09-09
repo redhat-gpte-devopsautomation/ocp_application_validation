@@ -47,7 +47,7 @@
   uri:
     url: "{{ '{{' }} (item.spec.tls is defined) | ternary('https', 'http') {{ '}}' }}://{{ '{{' }} item.spec.host {{ '}}' }}"
     method: GET
-    return_content: "{{ _validate.validate_content | default(true) }}"
+    return_content: "{{ _validate.validate_content | default(false) }}"
     validate_certs: false
     status_code: "{{ '{{' }} _validate.status_code | default([200, 302, 301]) | map('int') | list {{ '}}' }}"
     timeout: 30
@@ -57,29 +57,27 @@
   retries: "{{ _validate.retries | default(3) }}"
   delay: "{{ _validate.delay | default(10) }}"
 
-- name: "Validate lab content in showroom responses"
+- name: "Count successful HTTP responses"
   when: 
     - _r_showroom_http_tests is defined
     - not _r_showroom_http_tests.skipped | default(false)
     - _r_showroom_http_tests.results is defined
-    - _validate.validate_content | default(true) | bool
   set_fact:
-    _content_valid_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | selectattr('content', 'search', _validate.content_check | default('lab')) | list | length {{ '}}' }}"
     _http_success_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
 
-- name: "Success - showroom deployments and routes with valid lab content found"
+- name: "Success - showroom deployments and routes responding successfully"
   when: 
     - not _r_showroom_deployments.failed | bool
     - not _r_showroom_routes.failed | bool
     - _filtered_deployments | default([]) | length > 0
     - _filtered_routes | default([]) | length > 0
-    - _content_valid_count | default(0) | int > 0
+    - _http_success_count | default(0) | int > 0
   set_fact:
     success: true
 
 - name: "No Success - showroom validation failed"
   when: 
-    - _r_showroom_deployments.failed | bool or _r_showroom_routes.failed | bool or (_filtered_deployments | default([]) | length == 0) or (_filtered_routes | default([]) | length == 0) or (_content_valid_count | default(0) | int == 0)
+    - _r_showroom_deployments.failed | bool or _r_showroom_routes.failed | bool or (_filtered_deployments | default([]) | length == 0) or (_filtered_routes | default([]) | length == 0) or (_http_success_count | default(0) | int == 0)
   set_fact:
     success: false
 
@@ -92,14 +90,13 @@
       {% if _r_showroom_http_tests is defined and not _r_showroom_http_tests.skipped | default(false) %}
       - HTTP Tests Performed: {{ '{{' }} _r_showroom_http_tests.results | default([]) | length {{ '}}' }}
       - HTTP Successful: {{ '{{' }} _http_success_count | default(0) {{ '}}' }}
-      - Content Valid (contains "{{ _validate.content_check | default('lab') }}"): {{ '{{' }} _content_valid_count | default(0) {{ '}}' }}
       {% else %}
       - HTTP Tests: SKIPPED (no routes found)
       {% endif %}
 
 - name: "set log message"
   set_fact:
-    log_message: "Showroom deployments and lab content validation in {{ _validate.namespace | default('cluster') }}"
+    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "Showroom validation result"

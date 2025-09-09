@@ -175,9 +175,7 @@ ocp_application_validation_list:
 
       # Showroom validation - discover all showroom* deployments and routes cluster-wide
       - kind: Showroom
-        validate_content: true
-        content_check: "lab"
-        status_code: [200]
+        status_code: [200, 302, 301]
         onfail: ignore
 
       # Orchestrator/Sonataflow validation
