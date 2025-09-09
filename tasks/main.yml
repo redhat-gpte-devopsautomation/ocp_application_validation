@@ -1,4 +1,9 @@
 ---
+- name: Clear previous validation results (start fresh)
+  agnosticd_user_info:
+    data:
+      ocp_application_validation_results: []
+
 - name: run ocp application validation tasks
   include_tasks: ./loop-validations.yml
   loop: "{{ ocp_application_validation_list }}"
