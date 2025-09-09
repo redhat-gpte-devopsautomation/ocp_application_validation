@@ -15,168 +15,106 @@ ocp_application_validation_argocd_admin_secret: tssc-gitops-cluster
 common_password: "{{ common_password | default('changeme') }}"
 
 lab_validation_config:
-  # Single cluster validation - ADS has only one cluster
+  # Single cluster validation - ADS has only one cluster (uses current kubeconfig)
   - cluster:
       name: ads-cluster
       onfail: ignore
     validations:
       # Baseline cluster validation
       - kind: Node
-        retries: 10
-        delay: 5
-
       - kind: StorageClass
-        retries: 5
-        delay: 5
 
       # ArgoCD (tssc-gitops) validation
       - kind: Route
         namespace: tssc-gitops
-        retries: 30
-        delay: 10
-
       - kind: Application
         namespace: tssc-gitops
-        retries: 30
-        delay: 10
-
       - kind: Secret
         name: tssc-gitops-cluster
         namespace: tssc-gitops
-        retries: 10
-        delay: 5
 
       # GitLab validation
       - kind: Deployment
         name: gitlab-webservice-default
         namespace: gitlab
-        retries: 120
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: gitlab
         namespace: gitlab
-        status_code: [200, 302]
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: StatefulSet
         name: gitlab-postgresql
         namespace: gitlab
-        retries: 60
-        delay: 15
         onfail: ignore
 
       # Jenkins validation
       - kind: Deployment
         name: jenkins
         namespace: jenkins
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: jenkins
         namespace: jenkins
-        status_code: [200, 302]
-        retries: 30
-        delay: 10
         onfail: ignore
-
       - kind: PersistentVolumeClaim
         name: jenkins
         namespace: jenkins
-        retries: 30
-        delay: 10
         onfail: ignore
 
       # Red Hat Developer Hub validation
       - kind: Deployment
         name: developer-hub
         namespace: tssc-dh
-        retries: 90
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: developer-hub
         namespace: tssc-dh
-        status_code: [200, 302]
-        retries: 60
-        delay: 15
         onfail: ignore
-
-      # Alternative RHDH in backstage namespace (fallback)
       - kind: Deployment
         name: backstage
         namespace: backstage
-        retries: 90
-        delay: 15
         onfail: ignore
 
       # OpenShift Dev Spaces validation
       - kind: Deployment
         name: devspaces-operator
         namespace: openshift-devspaces
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: CheCluster
         api_version: org.eclipse.che/v2
         name: devspaces
         namespace: openshift-devspaces
-        retries: 120
-        delay: 15
         onfail: ignore
 
       # Vault validation
       - kind: StatefulSet
         name: vault
         namespace: vault
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: vault
         namespace: vault
-        status_code: [200, 302]
-        retries: 30
-        delay: 10
         onfail: ignore
 
       # External Secrets validation
       - kind: Deployment
         name: external-secrets
         namespace: external-secrets
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: Deployment
         name: external-secrets-webhook
         namespace: external-secrets
-        retries: 60
-        delay: 15
         onfail: ignore
 
       # RHACM validation
       - kind: Deployment
         name: multicluster-operators-hub-subscription
         namespace: open-cluster-management
-        retries: 90
-        delay: 15
         onfail: ignore
-
       - kind: MultiClusterHub
         api_version: operator.open-cluster-management.io/v1
         name: multiclusterhub
         namespace: open-cluster-management
-        retries: 120
-        delay: 20
         onfail: ignore
 
       # ACS/RHACS validation
@@ -184,40 +122,24 @@ lab_validation_config:
         api_version: platform.stackrox.io/v1alpha1
         name: stackrox-central-services
         namespace: tssc-acs
-        retries: 120
-        delay: 20
         onfail: ignore
-
       - kind: Route
         name: central
         namespace: tssc-acs
-        status_code: [200, 302]
-        retries: 60
-        delay: 15
         onfail: ignore
 
       # Keycloak/SSO validation
       - kind: StatefulSet
         name: keycloak
         namespace: tssc-keycloak
-        retries: 90
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: keycloak
         namespace: tssc-keycloak
-        status_code: [200, 302]
-        retries: 60
-        delay: 15
         onfail: ignore
-
-      # Alternative RHSSO namespace (fallback)
       - kind: StatefulSet
         name: keycloak
         namespace: rhsso
-        retries: 90
-        delay: 15
         onfail: ignore
 
       # Quay validation
@@ -225,62 +147,39 @@ lab_validation_config:
         api_version: quay.redhat.com/v1
         name: quay
         namespace: tssc-quay
-        retries: 120
-        delay: 20
         onfail: ignore
-
       - kind: Route
         name: quay-quay
         namespace: tssc-quay
-        status_code: [200, 302]
-        retries: 60
-        delay: 15
         onfail: ignore
 
       # TPA validation
       - kind: Deployment
         name: trustification-ui
         namespace: tssc-tpa
-        retries: 90
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: trustification-ui
         namespace: tssc-tpa
-        status_code: [200, 302]
-        retries: 60
-        delay: 15
         onfail: ignore
 
       # Showroom validation
       - kind: Deployment
         name: showroom
         namespace: showroom
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: Route
         name: showroom
         namespace: showroom
-        status_code: [200, 302]
-        retries: 30
-        delay: 10
         onfail: ignore
 
       # Orchestrator/Sonataflow validation
       - kind: Deployment
         name: sonataflow-operator-controller-manager
         namespace: sonataflow-operator-system
-        retries: 60
-        delay: 15
         onfail: ignore
-
       - kind: SonataFlowPlatform
         api_version: sonataflow.org/v1alpha08
         name: sonataflow-platform
         namespace: sonataflow-infra
-        retries: 120
-        delay: 20
         onfail: ignore
