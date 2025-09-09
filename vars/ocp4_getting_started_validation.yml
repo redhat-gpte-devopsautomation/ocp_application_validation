@@ -1,0 +1,221 @@
+---
+# OCP4 Getting Started Lab Validation Configuration
+# Generic validation for OpenShift Getting Started environments
+# Based on common workloads: RHSSO, Pipelines, Gitea, GitOps, Showroom
+
+# OCP4 Getting Started lab configuration
+ocp_application_validation_technology: ocp
+ocp_application_validation_auth_type: rhsso
+# OCP4 Getting Started uses RHSSO/Keycloak
+ocp_application_validation_keycloak_namespace: rhsso
+ocp_application_validation_keycloak_realm: Getting-Started
+
+ocp4_getting_started_validation:
+  # Baseline cluster validation
+  - cluster:
+      name: baseline
+      onfail: fail
+    validations:
+      # Cluster nodes health
+      - kind: Node
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('status.conditions', 'defined') | selectattr('status.conditions', 'selectattr', 'type', 'equalto', 'Ready') | selectattr('status.conditions', 'selectattr', 'status', 'equalto', 'True') | list | length == (_r_validate_universal.resources | length)
+        retries: 10
+        delay: 5
+
+      # Default storage class exists
+      - kind: StorageClass
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('metadata.annotations', 'defined') | selectattr('metadata.annotations', 'match', '.*storageclass.kubernetes.io/is-default-class.*true.*') | list | length > 0
+        retries: 5
+        delay: 5
+
+  # OpenShift Pipelines validation
+  - cluster:
+      name: pipelines
+      onfail: fail
+    validations:
+      # Tekton controller
+      - kind: Deployment
+        name: tekton-pipelines-controller
+        namespace: openshift-pipelines
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+      # Tekton webhook
+      - kind: Deployment
+        name: tekton-pipelines-webhook
+        namespace: openshift-pipelines
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+  # OpenShift GitOps validation
+  - cluster:
+      name: gitops
+      onfail: fail
+    validations:
+      # GitOps server deployment
+      - kind: Deployment
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+      # GitOps server route
+      - kind: Route
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        retries: 30
+        delay: 10
+
+      # GitOps application controller
+      - kind: Deployment
+        name: openshift-gitops-application-controller
+        namespace: openshift-gitops
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+  # Gitea validation
+  - cluster:
+      name: gitea
+      onfail: fail
+    validations:
+      # Gitea deployment
+      - kind: Deployment
+        name: gitea
+        namespace: gitea
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # Gitea route
+      - kind: Route
+        name: gitea
+        namespace: gitea
+        retries: 30
+        delay: 10
+
+      # Gitea PostgreSQL
+      - kind: Deployment
+        name: gitea-postgresql
+        namespace: gitea
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # RHSSO validation (if present)
+  - cluster:
+      name: rhsso
+      onfail: ignore
+    validations:
+      # RHSSO StatefulSet
+      - kind: StatefulSet
+        name: keycloak
+        namespace: rhsso
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # RHSSO route
+      - kind: Route
+        name: keycloak
+        namespace: rhsso
+        retries: 30
+        delay: 10
+
+  # Showroom validation (if present)
+  - cluster:
+      name: showroom
+      onfail: ignore
+    validations:
+      # Showroom deployment
+      - kind: Deployment
+        name: showroom
+        namespace: showroom
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # Showroom route
+      - kind: Route
+        name: showroom
+        namespace: showroom
+        retries: 30
+        delay: 10
+
+  # Operator Hub catalogs validation
+  - cluster:
+      name: catalog_sources
+      onfail: ignore
+    validations:
+      # Custom catalog source (if using catalog snapshots)
+      - kind: CatalogSource
+        name: redhat-catalog-snapshot
+        namespace: openshift-marketplace
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.connectionState.lastObservedState | default('') == 'READY'
+        retries: 30
+        delay: 10
+
+      # Gitea operator catalog
+      - kind: CatalogSource
+        name: gitea-catalog
+        namespace: openshift-marketplace
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.connectionState.lastObservedState | default('') == 'READY'
+        retries: 30
+        delay: 10
+
+  # GitOps Applications validation
+  - cluster:
+      name: gitops_apps
+      onfail: ignore
+    validations:
+      # Bootstrap application
+      - kind: Application
+        name: bootstrap
+        namespace: openshift-gitops
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.health.status | default('') == 'Healthy'
+          - _r_validate_universal.resources[0].status.sync.status | default('') == 'Synced'
+        retries: 60
+        delay: 15
+
+  # Student user validation (if using multi-user setup)
+  - cluster:
+      name: student_access
+      onfail: ignore
+    validations:
+      # User projects/namespaces (common pattern: user1, user2, etc.)
+      - kind: Project
+        name: user1
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.phase | default('') == 'Active'
+        retries: 30
+        delay: 10

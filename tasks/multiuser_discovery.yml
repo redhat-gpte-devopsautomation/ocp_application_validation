@@ -1,0 +1,213 @@
+---
+# Discover workshop users from authentication system
+# Supports both Keycloak and htpasswd authentication methods
+
+- name: Initialize discovery results
+  ansible.builtin.set_fact:
+    discovered_workshop_users: []
+    keycloak_all_users: []
+    htpasswd_all_users: []
+    validation_results: []
+
+- name: Set authentication method from configuration
+  ansible.builtin.set_fact:
+    auth_method: "{{ ocp_application_validation_auth_type | default('rhsso') }}"
+
+- name: "=== Discovering Users from Authentication System ==="
+  ansible.builtin.debug:
+    msg: |
+      Discovering workshop users from {{ auth_method }} authentication
+      {% if auth_method in ['rhsso', 'rhbk'] -%}
+      Namespace: {{ ocp_application_validation_keycloak_namespace }}
+      Realm: {{ ocp_application_validation_keycloak_realm }}
+      {%- elif auth_method == 'htpasswd' -%}
+      Method: htpasswd (OAuth configuration)
+      {%- else -%}
+      Method: {{ auth_method }}
+      {%- endif %}
+      Expected pattern: {{ ocp_application_validation_user_base_name }}[1-9]+
+
+# ============================================================================
+# RHSSO/RHBK Discovery (when using Keycloak-based authentication)
+# ============================================================================
+
+- name: Check if Keycloak/RHSSO is running
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    name: keycloak
+    namespace: "{{ ocp_application_validation_keycloak_namespace }}"
+  register: r_keycloak_statefulset
+  when: auth_method in ['rhsso', 'rhbk']
+
+- name: Validate Keycloak is ready
+  ansible.builtin.assert:
+    that:
+      - r_keycloak_statefulset.resources | length > 0
+      - r_keycloak_statefulset.resources[0].status.readyReplicas | default(0) >= 1
+    fail_msg: "Keycloak is not running or ready in namespace {{ keycloak_namespace }}"
+    success_msg: "Keycloak is running and ready"
+
+- name: Get Keycloak admin credentials
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: keycloak-initial-admin
+    namespace: "{{ keycloak_namespace }}"
+  register: r_keycloak_admin_secret
+
+- name: Set Keycloak admin credentials
+  ansible.builtin.set_fact:
+    keycloak_admin_user: "{{ r_keycloak_admin_secret.resources[0].data.username | b64decode }}"
+    keycloak_admin_password: "{{ r_keycloak_admin_secret.resources[0].data.password | b64decode }}"
+  when: r_keycloak_admin_secret.resources | length > 0
+
+- name: Get Keycloak route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: keycloak
+    namespace: "{{ keycloak_namespace }}"
+  register: r_keycloak_route
+
+- name: Set Keycloak URL
+  ansible.builtin.set_fact:
+    keycloak_url: "https://{{ r_keycloak_route.resources[0].spec.host }}"
+  when: r_keycloak_route.resources | length > 0
+
+- name: Test Keycloak accessibility
+  ansible.builtin.uri:
+    url: "{{ keycloak_url }}"
+    method: GET
+    validate_certs: false
+    status_code: [200, 302]
+  register: r_keycloak_access
+  retries: 30
+  delay: 10
+
+- name: Add Keycloak accessibility result
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [keycloak_result] }}"
+  vars:
+    keycloak_result:
+      scope: "keycloak_infrastructure"
+      check: "Keycloak route accessibility"
+      status: "{{ 'PASS' if not r_keycloak_access.failed else 'FAIL' }}"
+      detail: "{{ 'Keycloak accessible at ' + keycloak_url if not r_keycloak_access.failed else 'Keycloak not accessible' }}"
+
+# ============================================================================
+# Get Keycloak Admin Token
+# ============================================================================
+
+- name: Get Keycloak admin token
+  ansible.builtin.uri:
+    url: "{{ keycloak_url }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      client_id: admin-cli
+      username: "{{ keycloak_admin_user }}"
+      password: "{{ keycloak_admin_password }}"
+      grant_type: password
+  register: r_keycloak_token
+  retries: 10
+  delay: 5
+
+- name: Add Keycloak authentication result
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [auth_result] }}"
+  vars:
+    auth_result:
+      scope: "keycloak_authentication"
+      check: "Keycloak admin authentication"
+      status: "{{ 'PASS' if not r_keycloak_token.failed else 'FAIL' }}"
+      detail: "{{ 'Successfully authenticated with Keycloak admin' if not r_keycloak_token.failed else 'Failed to authenticate with Keycloak admin' }}"
+
+# ============================================================================
+# Discover Workshop Users
+# ============================================================================
+
+- name: Get all users from Keycloak realm
+  ansible.builtin.uri:
+    url: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm }}/users"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ r_keycloak_token.json.access_token }}"
+  register: r_keycloak_users
+  when: not r_keycloak_token.failed
+
+- name: Extract all Keycloak usernames
+  ansible.builtin.set_fact:
+    keycloak_all_users: "{{ r_keycloak_users.json | map(attribute='username') | list }}"
+  when: r_keycloak_users is defined and not r_keycloak_users.failed
+
+- name: Filter workshop users from Keycloak (matching pattern)
+  ansible.builtin.set_fact:
+    discovered_workshop_users: "{{ keycloak_all_users | select('match', '^' + ocp_application_validation_user_base_name + '[0-9]+$') | list | sort }}"
+  when: 
+    - auth_method in ['rhsso', 'rhbk']
+    - keycloak_all_users | length > 0
+
+# ============================================================================
+# htpasswd Discovery (when using htpasswd authentication)
+# ============================================================================
+
+- name: Get OAuth configuration for htpasswd
+  kubernetes.core.k8s_info:
+    api_version: config.openshift.io/v1
+    kind: OAuth
+    name: cluster
+  register: r_oauth_config
+  when: auth_method == 'htpasswd'
+
+- name: Get htpasswd secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: htpass-secret
+    namespace: openshift-config
+  register: r_htpasswd_secret
+  when: auth_method == 'htpasswd'
+
+- name: Extract htpasswd users
+  ansible.builtin.set_fact:
+    htpasswd_all_users: "{{ (r_htpasswd_secret.resources[0].data.htpasswd | b64decode).split('\n') | select('match', '^[^:]+:') | map('regex_replace', ':.*$', '') | list }}"
+  when: 
+    - auth_method == 'htpasswd'
+    - r_htpasswd_secret.resources | length > 0
+
+- name: Filter workshop users from htpasswd (matching pattern)
+  ansible.builtin.set_fact:
+    discovered_workshop_users: "{{ htpasswd_all_users | select('match', '^' + ocp_application_validation_user_base_name + '[0-9]+$') | list | sort }}"
+  when: 
+    - auth_method == 'htpasswd'
+    - htpasswd_all_users | length > 0
+
+
+- name: Add user discovery result
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [discovery_result] }}"
+  vars:
+    discovery_result:
+      scope: "user_discovery"
+      check: "Workshop user discovery"
+      status: "{{ 'PASS' if discovered_workshop_users | length > 0 else 'WARN' }}"
+      detail: "{{ 'Found ' + (discovered_workshop_users | length | string) + ' workshop users via ' + auth_method + ': ' + (discovered_workshop_users | join(', ')) if discovered_workshop_users | length > 0 else 'No workshop users found matching pattern ' + ocp_application_validation_user_base_name + '[0-9]+ via ' + auth_method }}"
+
+- name: "=== User Discovery Results ==="
+  ansible.builtin.debug:
+    msg: |
+      User discovery completed
+      Total users in Keycloak realm '{{ keycloak_realm }}': {{ keycloak_all_users | length }}
+      Workshop users found: {{ discovered_workshop_users | length }}
+      Workshop users: {{ discovered_workshop_users | join(', ') }}
+      Pattern used: {{ user_base_name }}[0-9]+
+
+- name: Fail if no workshop users found and strict mode
+  ansible.builtin.fail:
+    msg: "No workshop users found in Keycloak realm {{ keycloak_realm }}"
+  when: 
+    - discovered_workshop_users | length == 0
+    - strict | bool

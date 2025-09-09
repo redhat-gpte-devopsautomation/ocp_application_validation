@@ -17,6 +17,16 @@ ocp_application_validation_list:
         namespace: openshift-gitops
         retries: 1
 
+# User validation configuration - enables user discovery and validation
+ocp_application_validation_multiuser_enabled: false
+ocp_application_validation_user_base_name: user
+ocp_application_validation_auth_type: rhsso  # rhsso, rhbk, htpasswd
+ocp_application_validation_keycloak_namespace: keycloak
+ocp_application_validation_keycloak_realm: workshop
+ocp_application_validation_gitlab_namespace: gitlab
+ocp_application_validation_rhdh_namespace: rhdh
+ocp_application_validation_technology: generic
+
 ##------------------------------------------##
 ## Available options    
 ##------------------------------------------##

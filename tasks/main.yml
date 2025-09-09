@@ -5,3 +5,22 @@
   loop_control:
     loop_var: _login
     index_var: _c_index
+
+- name: run user validation
+  when: ocp_application_validation_multiuser_enabled | default(false) | bool
+  block:
+    - name: "=== User Validation Started ==="
+      ansible.builtin.debug:
+        msg: |
+          Starting user discovery and validation
+          User pattern: {{ ocp_application_validation_user_base_name | default('user') }}
+          Authentication type: {{ ocp_application_validation_auth_type | default('rhsso') }}
+          Keycloak namespace: {{ ocp_application_validation_keycloak_namespace | default('tssc-keycloak') }}
+          Keycloak realm: {{ ocp_application_validation_keycloak_realm | default('ADS') }}
+
+    - name: discover users from keycloak
+      include_tasks: ./multiuser_discovery.yml
+
+    - name: validate discovered users
+      include_tasks: ./multiuser_validation.yml
+      when: discovered_workshop_users | default([]) | length > 0

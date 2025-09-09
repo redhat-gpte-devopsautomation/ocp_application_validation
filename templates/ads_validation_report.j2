@@ -1,0 +1,24 @@
+[
+{% set ns = namespace(results=[]) %}
+{% for file in lookup('fileglob', ocp_application_validation_result_path + '/*.yml', wantlist=True) %}
+  {% set result_data = lookup('file', file) | from_yaml %}
+  {% if result_data %}
+    {% for item in result_data %}
+      {% set _ = ns.results.append({
+        'scope': item.scope | default('unknown'),
+        'check': item.check | default('unknown'),
+        'status': item.status | default('UNKNOWN'),
+        'detail': item.detail | default('')
+      }) %}
+    {% endfor %}
+  {% endif %}
+{% endfor %}
+{% for result in ns.results %}
+  {
+    "scope": "{{ result.scope }}",
+    "check": "{{ result.check }}",
+    "status": "{{ result.status }}",
+    "detail": "{{ result.detail }}"
+  }{% if not loop.last %},{% endif %}
+{% endfor %}
+]

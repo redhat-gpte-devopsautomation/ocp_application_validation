@@ -1,0 +1,301 @@
+---
+# RHADS Enterprise Demo Validation Configuration
+# Single-user enterprise demo using RHADS technology stack
+# Based on REDHAT_ADS_DEMO from AgnosticV enterprise
+
+# RHADS Demo configuration
+ocp_application_validation_technology: rhads
+ocp_application_validation_auth_type: rhbk
+# Single-user demo - enable multi-user validation to discover user1
+ocp_application_validation_multiuser_enabled: true
+# RHADS uses RHBK in tssc-keycloak namespace
+ocp_application_validation_keycloak_namespace: tssc-keycloak
+ocp_application_validation_keycloak_realm: ADS
+# RHADS uses GitLab (not Gitea)
+ocp_application_validation_gitlab_namespace: gitlab
+ocp_application_validation_rhdh_namespace: tssc-dh
+
+rhads_demo_validation:
+  # Baseline cluster validation
+  - cluster:
+      name: baseline
+      onfail: fail
+    validations:
+      # Cluster nodes health
+      - kind: Node
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('status.conditions', 'defined') | selectattr('status.conditions', 'selectattr', 'type', 'equalto', 'Ready') | selectattr('status.conditions', 'selectattr', 'status', 'equalto', 'True') | list | length == (_r_validate_universal.resources | length)
+        retries: 10
+        delay: 5
+
+      # Default storage class exists
+      - kind: StorageClass
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('metadata.annotations', 'defined') | selectattr('metadata.annotations', 'match', '.*storageclass.kubernetes.io/is-default-class.*true.*') | list | length > 0
+        retries: 5
+        delay: 5
+
+  # External ODF validation
+  - cluster:
+      name: external_odf
+      onfail: fail
+    validations:
+      # ODF operator
+      - kind: Deployment
+        name: odf-operator-controller-manager
+        namespace: openshift-storage
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # OpenShift GitOps validation
+  - cluster:
+      name: gitops
+      onfail: fail
+    validations:
+      # GitOps server deployment
+      - kind: Deployment
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+      # GitOps server route
+      - kind: Route
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        retries: 30
+        delay: 10
+
+  # GitLab validation
+  - cluster:
+      name: gitlab
+      onfail: fail
+    validations:
+      # GitLab deployment
+      - kind: Deployment
+        name: gitlab-webservice-default
+        namespace: gitlab
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 120
+        delay: 30
+
+      # GitLab route
+      - kind: Route
+        name: gitlab
+        namespace: gitlab
+        retries: 30
+        delay: 10
+
+      # GitLab PostgreSQL
+      - kind: StatefulSet
+        name: gitlab-postgresql
+        namespace: gitlab
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Jenkins validation
+  - cluster:
+      name: jenkins
+      onfail: fail
+    validations:
+      # Jenkins deployment
+      - kind: Deployment
+        name: jenkins
+        namespace: jenkins
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # Jenkins route
+      - kind: Route
+        name: jenkins
+        namespace: jenkins
+        retries: 30
+        delay: 10
+
+  # Vault validation
+  - cluster:
+      name: vault
+      onfail: fail
+    validations:
+      # Vault StatefulSet
+      - kind: StatefulSet
+        name: vault
+        namespace: vault
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # Vault route
+      - kind: Route
+        name: vault
+        namespace: vault
+        retries: 30
+        delay: 10
+
+  # External Secrets validation
+  - cluster:
+      name: external_secrets
+      onfail: fail
+    validations:
+      # External Secrets operator
+      - kind: Deployment
+        name: external-secrets
+        namespace: external-secrets
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # RHDH Orchestrator validation
+  - cluster:
+      name: rhdh_orchestrator
+      onfail: fail
+    validations:
+      # RHDH deployment
+      - kind: Deployment
+        name: developer-hub
+        namespace: tssc-dh
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 120
+        delay: 30
+
+      # RHDH route
+      - kind: Route
+        name: developer-hub
+        namespace: tssc-dh
+        retries: 30
+        delay: 10
+
+      # SonataFlow namespace for orchestrator
+      - kind: Project
+        name: sonataflow-infra
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.phase | default('') == 'Active'
+        retries: 30
+        delay: 10
+
+  # Keycloak validation (RHBK)
+  - cluster:
+      name: keycloak
+      onfail: fail
+    validations:
+      # Keycloak StatefulSet
+      - kind: StatefulSet
+        name: keycloak
+        namespace: tssc-keycloak
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 120
+        delay: 30
+
+      # Keycloak route
+      - kind: Route
+        name: keycloak
+        namespace: tssc-keycloak
+        retries: 30
+        delay: 10
+
+  # OpenShift Dev Spaces validation
+  - cluster:
+      name: devspaces
+      onfail: ignore
+    validations:
+      # Dev Spaces operator
+      - kind: Deployment
+        name: devspaces-operator
+        namespace: openshift-devspaces
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Quay validation
+  - cluster:
+      name: quay
+      onfail: ignore
+    validations:
+      # Quay deployment
+      - kind: Deployment
+        name: quay-app
+        namespace: tssc-quay
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # RHACM validation
+  - cluster:
+      name: rhacm
+      onfail: ignore
+    validations:
+      # RHACM MultiClusterHub
+      - kind: MultiClusterHub
+        name: multiclusterhub
+        namespace: open-cluster-management
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.phase | default('') == 'Running'
+        retries: 120
+        delay: 30
+
+  # ACS validation
+  - cluster:
+      name: acs
+      onfail: ignore
+    validations:
+      # ACS Central
+      - kind: Central
+        name: stackrox-central-services
+        namespace: tssc-acs
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.conditions | selectattr('type', 'equalto', 'Deployed') | selectattr('status', 'equalto', 'True') | list | length > 0
+        retries: 120
+        delay: 30
+
+  # Showroom validation (demo instructions)
+  - cluster:
+      name: showroom
+      onfail: ignore
+    validations:
+      # Showroom deployment
+      - kind: Deployment
+        name: showroom
+        namespace: showroom
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # Showroom route
+      - kind: Route
+        name: showroom
+        namespace: showroom
+        retries: 30
+        delay: 10

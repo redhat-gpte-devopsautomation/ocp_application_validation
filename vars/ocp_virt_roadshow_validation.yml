@@ -1,0 +1,244 @@
+---
+# OCP Virtualization Roadshow Multi-User Lab Validation Configuration
+# Generic validation for OpenShift Virtualization roadshow environments
+# Based on workloads: htpasswd auth, KubeVirt, MTV, ODF, GitOps, Showroom
+
+# OCP Virt Roadshow lab configuration - technology type
+ocp_application_validation_technology: kubevirt
+ocp_application_validation_auth_type: htpasswd
+# Multi-user roadshow - enable user validation to discover users
+ocp_application_validation_multiuser_enabled: true
+
+ocp_virt_roadshow_validation:
+  # Baseline cluster validation
+  - cluster:
+      name: baseline
+      onfail: fail
+    validations:
+      # Cluster nodes health
+      - kind: Node
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('status.conditions', 'defined') | selectattr('status.conditions', 'selectattr', 'type', 'equalto', 'Ready') | selectattr('status.conditions', 'selectattr', 'status', 'equalto', 'True') | list | length == (_r_validate_universal.resources | length)
+        retries: 10
+        delay: 5
+
+      # Default storage class exists
+      - kind: StorageClass
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('metadata.annotations', 'defined') | selectattr('metadata.annotations', 'match', '.*storageclass.kubernetes.io/is-default-class.*true.*') | list | length > 0
+        retries: 5
+        delay: 5
+
+  # OpenShift GitOps validation
+  - cluster:
+      name: gitops
+      onfail: fail
+    validations:
+      # GitOps server deployment
+      - kind: Deployment
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+      # GitOps server route
+      - kind: Route
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        retries: 30
+        delay: 10
+
+  # External ODF validation
+  - cluster:
+      name: external_odf
+      onfail: fail
+    validations:
+      # ODF operator
+      - kind: Deployment
+        name: odf-operator-controller-manager
+        namespace: openshift-storage
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # OCS StorageCluster
+      - kind: StorageCluster
+        name: ocs-storagecluster
+        namespace: openshift-storage
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.phase | default('') == 'Ready'
+        retries: 120
+        delay: 30
+
+  # KubeVirt validation
+  - cluster:
+      name: kubevirt
+      onfail: fail
+    validations:
+      # KubeVirt HyperConverged operator
+      - kind: Deployment
+        name: hco-operator
+        namespace: openshift-cnv
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # HyperConverged instance
+      - kind: HyperConverged
+        name: kubevirt-hyperconverged
+        namespace: openshift-cnv
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.conditions | selectattr('type', 'equalto', 'Available') | selectattr('status', 'equalto', 'True') | list | length > 0
+        retries: 120
+        delay: 30
+
+      # KubeVirt deployment
+      - kind: Deployment
+        name: virt-controller
+        namespace: openshift-cnv
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Migration Toolkit for Virtualization (MTV)
+  - cluster:
+      name: mtv
+      onfail: fail
+    validations:
+      # MTV operator
+      - kind: Deployment
+        name: forklift-operator
+        namespace: openshift-mtv
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # MTV controller
+      - kind: Deployment
+        name: forklift-controller
+        namespace: openshift-mtv
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Cert Manager validation
+  - cluster:
+      name: cert_manager
+      onfail: ignore
+    validations:
+      # Cert manager controller
+      - kind: Deployment
+        name: cert-manager
+        namespace: cert-manager
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Web Terminal validation
+  - cluster:
+      name: web_terminal
+      onfail: ignore
+    validations:
+      # Web Terminal operator
+      - kind: Deployment
+        name: web-terminal-controller-manager
+        namespace: openshift-operators
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # OADP validation (backup/restore)
+  - cluster:
+      name: oadp
+      onfail: ignore
+    validations:
+      # OADP operator
+      - kind: Deployment
+        name: openshift-adp-controller-manager
+        namespace: openshift-adp
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # NMState validation (network management)
+  - cluster:
+      name: nmstate
+      onfail: ignore
+    validations:
+      # NMState operator
+      - kind: Deployment
+        name: nmstate-operator
+        namespace: openshift-nmstate
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Showroom validation
+  - cluster:
+      name: showroom
+      onfail: ignore
+    validations:
+      # Showroom deployment
+      - kind: Deployment
+        name: showroom
+        namespace: showroom
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+      # Showroom route
+      - kind: Route
+        name: showroom
+        namespace: showroom
+        retries: 30
+        delay: 10
+
+  # User namespace validation (sample user namespaces)
+  - cluster:
+      name: user_namespaces
+      onfail: ignore
+    validations:
+      # Check for user1 VM namespace
+      - kind: Project
+        name: vmimported-user1
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.phase | default('') == 'Active'
+        retries: 30
+        delay: 10
+
+      # Check for user1 MTV namespace
+      - kind: Project
+        name: mtv-user1
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.phase | default('') == 'Active'
+        retries: 30
+        delay: 10

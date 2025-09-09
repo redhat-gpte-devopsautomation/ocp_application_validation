@@ -1,0 +1,109 @@
+---
+# RHDH (Red Hat Developer Hub) specific validation
+# This validates RHDH components and user catalog entries
+# Used primarily in ADS labs
+
+- name: "=== RHDH Validation Started ==="
+  ansible.builtin.debug:
+    msg: |
+      Starting RHDH (Red Hat Developer Hub) validation
+      Namespace: {{ ocp_application_validation_rhdh_namespace }}
+      Discovered users: {{ discovered_workshop_users | length }}
+
+# ============================================================================
+# RHDH Infrastructure Validation
+# ============================================================================
+
+- name: Get RHDH route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: developer-hub
+    namespace: "{{ ocp_application_validation_rhdh_namespace }}"
+  register: r_rhdh_route
+
+- name: Set RHDH URL
+  ansible.builtin.set_fact:
+    rhdh_url: "https://{{ r_rhdh_route.resources[0].spec.host }}"
+  when: r_rhdh_route.resources | length > 0
+
+- name: Test RHDH accessibility
+  ansible.builtin.uri:
+    url: "{{ rhdh_url }}"
+    method: GET
+    validate_certs: false
+    status_code: [200, 302]
+  register: r_rhdh_access
+  when: rhdh_url is defined
+
+- name: Add RHDH accessibility result
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [rhdh_access_result] }}"
+  vars:
+    rhdh_access_result:
+      scope: "rhdh_access"
+      check: "RHDH route accessibility"
+      status: "{{ 'PASS' if (r_rhdh_access is defined and not r_rhdh_access.failed) else 'FAIL' }}"
+      detail: "{{ 'RHDH accessible at ' + rhdh_url if (r_rhdh_access is defined and not r_rhdh_access.failed) else 'RHDH not accessible' }}"
+
+# ============================================================================
+# RHDH User Components Validation
+# ============================================================================
+
+- name: Check for RHDH Components (Backstage catalog entries)
+  kubernetes.core.k8s_info:
+    api_version: backstage.io/v1alpha1
+    kind: Component
+    namespace: "{{ ocp_application_validation_rhdh_namespace }}"
+  register: r_rhdh_components
+  ignore_errors: true
+
+- name: Extract user-related components from RHDH
+  ansible.builtin.set_fact:
+    rhdh_user_components: "{{ r_rhdh_components.resources | default([]) | map(attribute='metadata.name') | select('match', '.*(' + discovered_workshop_users | join('|') + ').*') | list }}"
+  when: r_rhdh_components.resources is defined
+
+- name: Add RHDH components result
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [rhdh_components_result] }}"
+  vars:
+    components_found: "{{ rhdh_user_components | default([]) | length }}"
+    rhdh_components_result:
+      scope: "rhdh_components"
+      check: "RHDH user components in catalog"
+      status: "{{ 'PASS' if components_found > 0 else 'WARN' }}"
+      detail: "{{ 'Found ' + (components_found | string) + ' user-related components in RHDH catalog' if components_found > 0 else 'No user-related components found in RHDH catalog (users may not have created projects yet)' }}"
+
+# ============================================================================
+# RHDH API Validation (if API access needed)
+# ============================================================================
+
+- name: Check RHDH API entities endpoint
+  ansible.builtin.uri:
+    url: "{{ rhdh_url }}/api/catalog/entities"
+    method: GET
+    validate_certs: false
+    status_code: [200, 401, 403]
+  register: r_rhdh_api
+  when: rhdh_url is defined
+  ignore_errors: true
+
+- name: Add RHDH API result
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + [rhdh_api_result] }}"
+  vars:
+    api_accessible: "{{ r_rhdh_api is defined and r_rhdh_api.status == 200 }}"
+    rhdh_api_result:
+      scope: "rhdh_api"
+      check: "RHDH API accessibility"
+      status: "{{ 'PASS' if api_accessible else 'WARN' }}"
+      detail: "{{ 'RHDH API accessible (catalog entities endpoint)' if api_accessible else 'RHDH API not accessible or requires authentication (status: ' + (r_rhdh_api.status | default('unknown') | string) + ')' }}"
+  when: r_rhdh_api is defined
+
+- name: "=== RHDH Validation Summary ==="
+  ansible.builtin.debug:
+    msg: |
+      RHDH validation completed
+      - Route accessible: {{ '✓' if (r_rhdh_access is defined and not r_rhdh_access.failed) else '✗' }}
+      - User components: {{ rhdh_user_components | default([]) | length }}
+      - API accessible: {{ '✓' if (r_rhdh_api is defined and r_rhdh_api.status == 200) else '?' }}

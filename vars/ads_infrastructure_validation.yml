@@ -1,0 +1,145 @@
+---
+# ADS Infrastructure Validation (non-user specific)
+# Basic platform components needed for multi-user environment
+
+ads_infrastructure_validation:
+  # Baseline cluster validation
+  - cluster:
+      name: baseline
+      onfail: fail
+    validations:
+      # Cluster nodes health
+      - kind: Node
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('status.conditions', 'defined') | selectattr('status.conditions', 'selectattr', 'type', 'equalto', 'Ready') | selectattr('status.conditions', 'selectattr', 'status', 'equalto', 'True') | list | length == (_r_validate_universal.resources | length)
+        retries: 10
+        delay: 5
+
+      # Default storage class exists
+      - kind: StorageClass
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources | selectattr('metadata.annotations', 'defined') | selectattr('metadata.annotations', 'match', '.*storageclass.kubernetes.io/is-default-class.*true.*') | list | length > 0
+        retries: 5
+        delay: 5
+
+  # OpenShift GitOps validation
+  - cluster:
+      name: gitops
+      onfail: ignore
+    validations:
+      # GitOps server
+      - kind: Deployment
+        name: openshift-gitops-server
+        namespace: openshift-gitops
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+  # OpenShift Pipelines validation
+  - cluster:
+      name: pipelines
+      onfail: ignore
+    validations:
+      # Tekton controller
+      - kind: Deployment
+        name: tekton-pipelines-controller
+        namespace: openshift-pipelines
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 10
+
+  # Jenkins validation (if present)
+  - cluster:
+      name: jenkins
+      onfail: ignore
+    validations:
+      # Jenkins deployment
+      - kind: Deployment
+        name: jenkins
+        namespace: jenkins
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # External ODF validation
+  - cluster:
+      name: external_odf
+      onfail: ignore
+    validations:
+      # ODF operator
+      - kind: Deployment
+        name: odf-operator-controller-manager
+        namespace: openshift-storage
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Cert Manager validation
+  - cluster:
+      name: cert_manager
+      onfail: ignore
+    validations:
+      # Cert manager controller
+      - kind: Deployment
+        name: cert-manager
+        namespace: cert-manager
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # DevSpaces validation
+  - cluster:
+      name: devspaces
+      onfail: ignore
+    validations:
+      # Dev Spaces operator
+      - kind: Deployment
+        name: devspaces-operator
+        namespace: openshift-devspaces
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # Vault validation (if present)
+  - cluster:
+      name: vault
+      onfail: ignore
+    validations:
+      # Vault StatefulSet
+      - kind: StatefulSet
+        name: vault
+        namespace: vault
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15
+
+  # External Secrets validation (if present)
+  - cluster:
+      name: external_secrets
+      onfail: ignore
+    validations:
+      # External Secrets operator
+      - kind: Deployment
+        name: external-secrets
+        namespace: external-secrets
+        conditions:
+          - _r_validate_universal.resources | length > 0
+          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
+        retries: 60
+        delay: 15

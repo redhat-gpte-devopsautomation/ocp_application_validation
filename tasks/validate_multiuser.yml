@@ -1,0 +1,304 @@
+---
+# Multi-user validation tasks for ADS lab
+# Validates Keycloak users, GitLab users, and Showroom user data
+
+- name: "=== Multi-User Validation Started ==="
+  ansible.builtin.debug:
+    msg: |
+      Validating {{ user_count }} users in ADS lab
+      User base name: {{ user_base_name }}
+      Keycloak namespace: {{ keycloak_namespace }}
+      GitLab namespace: {{ gitlab_namespace }}
+
+- name: Initialize user validation results
+  ansible.builtin.set_fact:
+    user_validation_results: []
+    keycloak_users_found: []
+    gitlab_users_found: []
+    showroom_user_data: {}
+
+# ============================================================================
+# Keycloak User Validation
+# ============================================================================
+
+- name: Get Keycloak admin credentials
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: keycloak-initial-admin
+    namespace: "{{ keycloak_namespace }}"
+  register: r_keycloak_admin_secret
+  retries: 10
+  delay: 5
+
+- name: Set Keycloak admin credentials
+  ansible.builtin.set_fact:
+    keycloak_admin_user: "{{ r_keycloak_admin_secret.resources[0].data.username | b64decode }}"
+    keycloak_admin_password: "{{ r_keycloak_admin_secret.resources[0].data.password | b64decode }}"
+  when: r_keycloak_admin_secret.resources | length > 0
+
+- name: Get Keycloak route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: keycloak
+    namespace: "{{ keycloak_namespace }}"
+  register: r_keycloak_route
+
+- name: Set Keycloak URL
+  ansible.builtin.set_fact:
+    keycloak_url: "https://{{ r_keycloak_route.resources[0].spec.host }}"
+  when: r_keycloak_route.resources | length > 0
+
+- name: Get Keycloak admin token
+  ansible.builtin.uri:
+    url: "{{ keycloak_url }}/realms/master/protocol/openid-connect/token"
+    method: POST
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      client_id: admin-cli
+      username: "{{ keycloak_admin_user }}"
+      password: "{{ keycloak_admin_password }}"
+      grant_type: password
+  register: r_keycloak_token
+  when: keycloak_url is defined
+
+- name: Get all users from Keycloak realm
+  ansible.builtin.uri:
+    url: "{{ keycloak_url }}/admin/realms/{{ keycloak_realm | default('ADS') }}/users"
+    method: GET
+    validate_certs: false
+    headers:
+      Authorization: "Bearer {{ r_keycloak_token.json.access_token }}"
+  register: r_keycloak_users
+  when: r_keycloak_token is defined and not r_keycloak_token.failed
+
+- name: Extract Keycloak usernames
+  ansible.builtin.set_fact:
+    keycloak_users_found: "{{ r_keycloak_users.json | map(attribute='username') | list }}"
+  when: r_keycloak_users is defined and not r_keycloak_users.failed
+
+- name: Validate Keycloak users
+  ansible.builtin.set_fact:
+    user_validation_results: "{{ user_validation_results + [validation_result] }}"
+  vars:
+    expected_user: "{{ user_base_name }}{{ item }}"
+    user_exists: "{{ expected_user in keycloak_users_found }}"
+    validation_result:
+      scope: "keycloak_users"
+      check: "{{ expected_user }} user existence"
+      status: "{{ 'PASS' if user_exists else 'FAIL' }}"
+      detail: "{{ 'User found in Keycloak realm' if user_exists else 'User not found in Keycloak realm' }}"
+  loop: "{{ range(1, user_count + 1) | list }}"
+
+# ============================================================================
+# GitLab User Validation
+# ============================================================================
+
+- name: Get GitLab route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: gitlab
+    namespace: "{{ gitlab_namespace }}"
+  register: r_gitlab_route
+
+- name: Set GitLab URL
+  ansible.builtin.set_fact:
+    gitlab_url: "https://{{ r_gitlab_route.resources[0].spec.host }}"
+  when: r_gitlab_route.resources | length > 0
+
+- name: Get GitLab root token from secret
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Secret
+    name: gitlab-gitlab-initial-root-password
+    namespace: "{{ gitlab_namespace }}"
+  register: r_gitlab_root_secret
+
+- name: Set GitLab root password
+  ansible.builtin.set_fact:
+    gitlab_root_password: "{{ r_gitlab_root_secret.resources[0].data.password | b64decode }}"
+  when: r_gitlab_root_secret.resources | length > 0
+
+- name: Get GitLab API token (create session)
+  ansible.builtin.uri:
+    url: "{{ gitlab_url }}/api/v4/session"
+    method: POST
+    validate_certs: false
+    body_format: form-urlencoded
+    body:
+      login: root
+      password: "{{ gitlab_root_password }}"
+  register: r_gitlab_session
+  when: gitlab_url is defined and gitlab_root_password is defined
+
+- name: Get all GitLab users
+  ansible.builtin.uri:
+    url: "{{ gitlab_url }}/api/v4/users"
+    method: GET
+    validate_certs: false
+    headers:
+      Private-Token: "{{ r_gitlab_session.json.private_token }}"
+  register: r_gitlab_users
+  when: r_gitlab_session is defined and not r_gitlab_session.failed
+
+- name: Extract GitLab usernames
+  ansible.builtin.set_fact:
+    gitlab_users_found: "{{ r_gitlab_users.json | map(attribute='username') | list }}"
+  when: r_gitlab_users is defined and not r_gitlab_users.failed
+
+- name: Validate GitLab users
+  ansible.builtin.set_fact:
+    user_validation_results: "{{ user_validation_results + [validation_result] }}"
+  vars:
+    expected_user: "{{ user_base_name }}{{ item }}"
+    user_exists: "{{ expected_user in gitlab_users_found }}"
+    validation_result:
+      scope: "gitlab_users"
+      check: "{{ expected_user }} user existence"
+      status: "{{ 'PASS' if user_exists else 'FAIL' }}"
+      detail: "{{ 'User found in GitLab' if user_exists else 'User not found in GitLab' }}"
+  loop: "{{ range(1, user_count + 1) | list }}"
+
+# ============================================================================
+# Showroom User Data Validation
+# ============================================================================
+
+- name: Get Showroom deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    name: showroom
+    namespace: showroom
+  register: r_showroom_deployment
+
+- name: Check if Showroom has user data ConfigMap
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: ConfigMap
+    namespace: showroom
+    label_selectors:
+      - "app=showroom"
+  register: r_showroom_configmaps
+
+- name: Get Showroom route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: showroom
+    namespace: showroom
+  register: r_showroom_route
+
+- name: Set Showroom URL
+  ansible.builtin.set_fact:
+    showroom_url: "https://{{ r_showroom_route.resources[0].spec.host }}"
+  when: r_showroom_route.resources | length > 0
+
+- name: Test Showroom accessibility for each user
+  ansible.builtin.uri:
+    url: "{{ showroom_url }}"
+    method: GET
+    validate_certs: false
+    status_code: [200, 302]
+  register: r_showroom_access
+  ignore_errors: true
+
+- name: Validate Showroom accessibility
+  ansible.builtin.set_fact:
+    user_validation_results: "{{ user_validation_results + [validation_result] }}"
+  vars:
+    validation_result:
+      scope: "showroom"
+      check: "Showroom accessibility"
+      status: "{{ 'PASS' if not r_showroom_access.failed else 'FAIL' }}"
+      detail: "{{ 'Showroom accessible via route' if not r_showroom_access.failed else 'Showroom not accessible' }}"
+
+# ============================================================================
+# RHDH User Access Validation
+# ============================================================================
+
+- name: Get RHDH route
+  kubernetes.core.k8s_info:
+    api_version: route.openshift.io/v1
+    kind: Route
+    name: developer-hub
+    namespace: "{{ rhdh_namespace }}"
+  register: r_rhdh_route
+
+- name: Set RHDH URL
+  ansible.builtin.set_fact:
+    rhdh_url: "https://{{ r_rhdh_route.resources[0].spec.host }}"
+  when: r_rhdh_route.resources | length > 0
+
+- name: Test RHDH accessibility
+  ansible.builtin.uri:
+    url: "{{ rhdh_url }}"
+    method: GET
+    validate_certs: false
+    status_code: [200, 302]
+  register: r_rhdh_access
+  ignore_errors: true
+
+- name: Validate RHDH accessibility
+  ansible.builtin.set_fact:
+    user_validation_results: "{{ user_validation_results + [validation_result] }}"
+  vars:
+    validation_result:
+      scope: "rhdh"
+      check: "RHDH accessibility"
+      status: "{{ 'PASS' if not r_rhdh_access.failed else 'FAIL' }}"
+      detail: "{{ 'RHDH accessible via route' if not r_rhdh_access.failed else 'RHDH not accessible' }}"
+
+# ============================================================================
+# User Components in Shared Namespaces
+# ============================================================================
+
+- name: Check for user-specific RHDH components
+  kubernetes.core.k8s_info:
+    api_version: backstage.io/v1alpha1
+    kind: Component
+    namespace: "{{ rhdh_namespace }}"
+  register: r_rhdh_components
+
+- name: Extract user components from RHDH
+  ansible.builtin.set_fact:
+    rhdh_user_components: "{{ r_rhdh_components.resources | map(attribute='metadata.name') | select('match', '.*' + user_base_name + '.*') | list }}"
+  when: r_rhdh_components.resources | length > 0
+
+- name: Validate user components in RHDH
+  ansible.builtin.set_fact:
+    user_validation_results: "{{ user_validation_results + [validation_result] }}"
+  vars:
+    expected_component: "{{ user_base_name }}{{ item }}"
+    component_exists: "{{ rhdh_user_components | select('match', '.*' + expected_component + '.*') | list | length > 0 }}"
+    validation_result:
+      scope: "rhdh_components"
+      check: "{{ expected_component }} component existence"
+      status: "{{ 'PASS' if component_exists else 'WARN' }}"
+      detail: "{{ 'User component found in RHDH catalog' if component_exists else 'User component not found in RHDH catalog (may not be created yet)' }}"
+  loop: "{{ range(1, user_count + 1) | list }}"
+  when: rhdh_user_components is defined
+
+# ============================================================================
+# Summary and Results
+# ============================================================================
+
+- name: "=== Multi-User Validation Summary ==="
+  ansible.builtin.debug:
+    msg: |
+      Multi-user validation completed for {{ user_count }} users
+      
+      Keycloak Users: {{ keycloak_users_found | length }}/{{ user_count }} expected
+      GitLab Users: {{ gitlab_users_found | length }}/{{ user_count }} expected
+      RHDH Components: {{ rhdh_user_components | default([]) | length }} found
+      
+      Total Checks: {{ user_validation_results | length }}
+      Passed: {{ user_validation_results | selectattr('status', 'equalto', 'PASS') | list | length }}
+      Failed: {{ user_validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }}
+      Warnings: {{ user_validation_results | selectattr('status', 'equalto', 'WARN') | list | length }}
+
+- name: Add user validation results to global results
+  ansible.builtin.set_fact:
+    validation_results: "{{ validation_results + user_validation_results }}"

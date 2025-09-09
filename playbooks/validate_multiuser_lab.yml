@@ -1,0 +1,69 @@
+---
+- name: Validate ADS Multi-User Lab Environment
+  hosts: localhost
+  gather_facts: false
+  vars:
+    validate_timeout: "{{ validate_timeout | default(600) }}"
+    strict: "{{ strict | default(false) }}"
+    
+    # ADS-specific defaults
+    user_base_name: "{{ user_base_name | default('user') }}"
+    keycloak_namespace: "{{ keycloak_namespace | default('tssc-keycloak') }}"
+    keycloak_realm: "{{ keycloak_realm | default('ADS') }}"
+    gitlab_namespace: "{{ gitlab_namespace | default('gitlab') }}"
+    rhdh_namespace: "{{ rhdh_namespace | default('tssc-dh') }}"
+    
+  tasks:
+    - name: "=== ADS Multi-User Lab Validation Started ==="
+      ansible.builtin.debug:
+        msg: |
+          Starting multi-user validation of ADS lab environment
+          Expected user pattern: {{ user_base_name }}N
+          Keycloak namespace: {{ keycloak_namespace }}
+          Keycloak realm: {{ keycloak_realm }}
+
+    # Step 1: Discover users from Keycloak
+    - name: Discover users from Keycloak
+      ansible.builtin.include_tasks: ../tasks/discover_users.yml
+
+    # Step 2: Run basic infrastructure validation
+    - name: Validate basic ADS infrastructure
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir }}/.."
+      vars:
+        ocp_application_validation_file_path: "/tmp/ads_multiuser_validation_{{ ansible_date_time.epoch }}"
+        ocp_application_validation_remove_testaments: true
+        ocp_application_validation_result_path: "/tmp/ads_multiuser_results_{{ ansible_date_time.epoch }}/"
+        ocp_application_validation_list: "{{ ads_infrastructure_validation }}"
+
+    # Step 3: Validate multi-user environment based on discovered users
+    - name: Validate multi-user environment
+      ansible.builtin.include_tasks: ../tasks/validate_discovered_users.yml
+      when: discovered_workshop_users | length > 0
+
+    # Step 4: Generate summary
+    - name: "=== Multi-User Validation Summary ==="
+      ansible.builtin.debug:
+        msg: |
+          Multi-user validation completed
+          Workshop users found: {{ discovered_workshop_users | length }}
+          Total validation checks: {{ validation_results | length }}
+          Passed: {{ validation_results | selectattr('status', 'equalto', 'PASS') | list | length }}
+          Failed: {{ validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }}
+          Warnings: {{ validation_results | selectattr('status', 'equalto', 'WARN') | list | length }}
+
+    - name: Write validation results to JSON
+      ansible.builtin.copy:
+        content: "{{ validation_results | to_nice_json }}"
+        dest: "./multiuser-validation-results.json"
+        mode: '0644'
+
+    - name: Fail if any critical checks failed
+      ansible.builtin.fail:
+        msg: "Multi-user validation failed with {{ validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }} critical errors"
+      when: 
+        - validation_results | selectattr('status', 'equalto', 'FAIL') | list | length > 0
+        - strict | bool
+
+  vars_files:
+    - ../vars/ads_infrastructure_validation.yml

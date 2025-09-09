@@ -16,6 +16,18 @@
     api_version: kafka.strimzi.io/v1beta2
 {% elif _validate.kind == 'ArgoCD' %}
     api_version: argoproj.io/v1alpha1
+{% elif _validate.kind == 'CheCluster' %}
+    api_version: org.eclipse.che/v2
+{% elif _validate.kind == 'MultiClusterHub' %}
+    api_version: operator.open-cluster-management.io/v1
+{% elif _validate.kind == 'Central' %}
+    api_version: platform.stackrox.io/v1alpha1
+{% elif _validate.kind == 'QuayRegistry' %}
+    api_version: quay.redhat.com/v1
+{% elif _validate.kind == 'SonataFlowPlatform' %}
+    api_version: sonataflow.org/v1alpha08
+{% elif _validate.kind == 'Keycloak' %}
+    api_version: keycloak.org/v1alpha1
 {% endif %}
     {% raw %}
     host: "{{ _r_auth_cluster.k8s_auth.host | default(omit) }}"
