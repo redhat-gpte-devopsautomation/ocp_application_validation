@@ -26,6 +26,7 @@ ocp_application_validation_list:
 
       # ArgoCD (tssc-gitops) validation
       - kind: Route
+        api_version: route.openshift.io/v1
         namespace: tssc-gitops
       - kind: Application
         namespace: tssc-gitops

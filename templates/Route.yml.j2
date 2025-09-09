@@ -9,6 +9,7 @@
     api_key: "{{ (_r_auth_cluster.k8s_auth.api_key | default('')) if _r_auth_cluster is defined else omit }}"
     {% endraw -%}
     validate_certs: false
+    api_version: route.openshift.io/v1
     kind: Route
 {% if _validate.name is defined %}
     name: "{{ _validate.name }}"
