@@ -136,6 +136,7 @@ ocp_application_validation_list:
         namespace: tssc-keycloak
         onfail: ignore
       - kind: Route
+        api_version: route.openshift.io/v1
         name: keycloak
         namespace: tssc-keycloak
         onfail: ignore
