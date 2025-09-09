@@ -159,7 +159,7 @@ ocp_application_validation_list:
 
       # TPA validation
       - kind: Deployment
-        name: trustification-ui
+        name: server
         namespace: tssc-tpa
         onfail: ignore
       - kind: Route
