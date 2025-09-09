@@ -18,27 +18,28 @@
       set_fact:
         _formatted_log_message_: "{{ '[%-4s] [%-12s] [%-s]' | format(_log_prefix, _login.cluster.name|d('local'), _log_message) }}"
 
-    - name: Appends validation result
+    - name: Appends validation result (optional file output)
       lineinfile:
         create: yes
         insertafter: EOF
         path: "{{ ocp_application_validation_result_path }}/result.yml"
         line: "{{ _formatted_log_message_ }}"
+      when: ocp_application_validation_result_path is defined
 
-    - name: gather agnosticd user data for validation message
+    - name: Gather agnosticd user data for validation message
       set_fact:
         _results_: "{{ lookup('agnosticd_user_data', 'ocp_application_validation_results') }}"
 
     - name: Check agnosticd_user_data length
-      when: not  _results_ | length > 0
+      when: not _results_ | length > 0
       set_fact:
          _results_: []
 
     - name: Set Serial No
       set_fact:
-        _srn_: "{{ _results_ | length  + 1 }}"
+        _srn_: "{{ _results_ | length + 1 }}"
 
-    - name: Print and save results  
+    - name: Print and save results (both file and AgnosticD user data)
       agnosticd_user_info:
         data:
-          ocp_application_validation_results: "{{ _results_ +  ['[%2s] %s' | format(_srn_, _formatted_log_message_)] }}"
+          ocp_application_validation_results: "{{ _results_ + ['[%02d] %s' | format(_srn_, _formatted_log_message_)] }}"
