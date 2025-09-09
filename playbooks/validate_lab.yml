@@ -15,6 +15,12 @@
           Strict mode: {{ _strict }}
           User validation: {{ ocp_application_validation_multiuser_enabled | default(false) }}
 
+    - name: Debug validation configuration
+      ansible.builtin.debug:
+        msg: |
+          Validation List: {{ ocp_application_validation_list | default('NOT DEFINED') }}
+          List Length: {{ ocp_application_validation_list | default([]) | length }}
+
     - name: Execute lab environment validation
       ansible.builtin.include_role:
         name: "{{ playbook_dir }}/.."
@@ -28,22 +34,25 @@
 
     - name: Retrieve validation results from AgnosticD user data
       set_fact:
-        validation_results: "{{ lookup('agnosticd_user_data', 'ocp_application_validation_results', wantlist=True) | default([]) }}"
+        validation_results_raw: "{{ lookup('agnosticd_user_data', 'ocp_application_validation_results', wantlist=True) | default([]) }}"
+
+    - name: Flatten validation results
+      set_fact:
+        validation_results: "{{ validation_results_raw | flatten }}"
 
     - name: "=== Validation Summary ==="
       ansible.builtin.debug:
         msg: |
           Validation completed
           Total checks: {{ validation_results | length }}
-          Passed: {{ validation_results | selectattr('status', 'equalto', 'PASS') | list | length }}
-          Failed: {{ validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }}
-          Warnings: {{ validation_results | selectattr('status', 'equalto', 'WARN') | list | length }}
-          {{ 'User checks: ' + (validation_results | selectattr('scope', 'match', '.*user.*') | list | length | string) if ocp_application_validation_multiuser_enabled | default(false) else '' }}
+          Passed: {{ validation_results | select('search', 'PASS') | list | length }}
+          Failed: {{ validation_results | select('search', 'FAIL') | list | length }}
+          Warnings: {{ validation_results | select('search', 'WARN') | list | length }}
 
     - name: Fail if any critical checks failed
       ansible.builtin.fail:
-        msg: "Validation failed with {{ validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }} critical errors"
+        msg: "Validation failed with {{ validation_results | select('search', 'FAIL') | list | length }} critical errors"
       when: 
-        - validation_results | selectattr('status', 'equalto', 'FAIL') | list | length > 0
+        - validation_results | select('search', 'FAIL') | list | length > 0
         - _strict | bool
 
