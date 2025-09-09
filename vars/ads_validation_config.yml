@@ -138,10 +138,6 @@ ocp_application_validation_list:
         name: keycloak
         namespace: tssc-keycloak
         onfail: ignore
-      - kind: StatefulSet
-        name: keycloak
-        namespace: rhsso
-        onfail: ignore
 
       # Quay validation
       - kind: QuayRegistry
