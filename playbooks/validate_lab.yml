@@ -3,11 +3,11 @@
   hosts: localhost
   gather_facts: false
   vars:
-    validate_timeout: "{{ validate_timeout | default(600) }}"
-    strict: "{{ strict | default(false) }}"
+    _validate_timeout: "{{ validate_timeout | default(600) }}"
+    _strict: "{{ strict | default(false) }}"
     
     # User validation configuration - auto-discovers users from authentication backend
-    ocp_application_validation_multiuser_enabled: "{{ ocp_application_validation_multiuser_enabled | default(false) }}"
+    _ocp_application_validation_multiuser_enabled: "{{ ocp_application_validation_multiuser_enabled | default(false) }}"
     user_base_name: "{{ user_base_name | default('user') }}"
     keycloak_namespace: "{{ keycloak_namespace | default('keycloak') }}"
     keycloak_realm: "{{ keycloak_realm | default('workshop') }}"
@@ -19,9 +19,9 @@
       ansible.builtin.debug:
         msg: |
           Starting validation of lab environment
-          Timeout: {{ validate_timeout }}s
-          Strict mode: {{ strict }}
-          User validation: {{ ocp_application_validation_multiuser_enabled }}
+          Timeout: {{ _validate_timeout }}s
+          Strict mode: {{ _strict }}
+          User validation: {{ _ocp_application_validation_multiuser_enabled }}
 
     - name: Execute lab environment validation
       ansible.builtin.include_role:
@@ -33,7 +33,7 @@
         ocp_application_validation_list: "{{ validation_config | default(ads_validation_config | default(ocp4_getting_started_validation | default([]))) }}"
         
         # Pass user validation variables to the role
-        ocp_application_validation_multiuser_enabled: "{{ ocp_application_validation_multiuser_enabled }}"
+        ocp_application_validation_multiuser_enabled: "{{ _ocp_application_validation_multiuser_enabled }}"
         ocp_application_validation_user_base_name: "{{ user_base_name }}"
         ocp_application_validation_keycloak_namespace: "{{ keycloak_namespace }}"
         ocp_application_validation_keycloak_realm: "{{ keycloak_realm }}"
@@ -54,14 +54,14 @@
           Passed: {{ validation_results | selectattr('status', 'equalto', 'PASS') | list | length }}
           Failed: {{ validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }}
           Warnings: {{ validation_results | selectattr('status', 'equalto', 'WARN') | list | length }}
-          {{ 'User checks: ' + (validation_results | selectattr('scope', 'match', '.*user.*') | list | length | string) if ocp_application_validation_multiuser_enabled else '' }}
+          {{ 'User checks: ' + (validation_results | selectattr('scope', 'match', '.*user.*') | list | length | string) if _ocp_application_validation_multiuser_enabled else '' }}
 
     - name: Fail if any critical checks failed
       ansible.builtin.fail:
         msg: "Validation failed with {{ validation_results | selectattr('status', 'equalto', 'FAIL') | list | length }} critical errors"
       when: 
         - validation_results | selectattr('status', 'equalto', 'FAIL') | list | length > 0
-        - strict | bool
+        - _strict | bool
 
   vars_files:
     - ../vars/ads_validation_config.yml
