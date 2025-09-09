@@ -176,7 +176,6 @@ ocp_application_validation_list:
       # Showroom validation - discover all showroom routes cluster-wide
       - kind: Route
         api_version: route.openshift.io/v1
-        name: showroom
         validate_content: true
         content_check: "lab"
         status_code: [200]
