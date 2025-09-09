@@ -1,7 +1,7 @@
 ---
 - name: Validate Lab Environment
   hosts: localhost
-  gather_facts: false
+  gather_facts: true
   vars:
     _validate_timeout: "{{ validate_timeout | default(600) }}"
     _strict: "{{ strict | default(false) }}"
