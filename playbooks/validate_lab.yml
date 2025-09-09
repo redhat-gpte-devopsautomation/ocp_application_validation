@@ -26,6 +26,9 @@
         
         # User validation variables are loaded from vars file or command line
 
+    - name: Retrieve validation results from AgnosticD user data
+      set_fact:
+        validation_results: "{{ lookup('agnosticd_user_data', 'ocp_application_validation_results', wantlist=True) | default([]) }}"
 
     - name: "=== Validation Summary ==="
       ansible.builtin.debug:
