@@ -7,15 +7,8 @@ ocp_application_validation_remove_testaments: true
 # Path for result directory
 ocp_application_validation_result_path: /tmp/validations/{{ guid[:5] | d('common') }}/
 
-# Example list of cluster and validation
-ocp_application_validation_list:
-  - cluster: 
-      name: local
-    validations: 
-      - kind: Route
-        name: openshift-gitops-server
-        namespace: openshift-gitops
-        retries: 1
+# Default empty list - labs should define ocp_application_validation_list in their vars files
+ocp_application_validation_list: []
 
 # User validation configuration - enables user discovery and validation
 ocp_application_validation_multiuser_enabled: false
