@@ -71,7 +71,7 @@
     status_code: "{{ _validate.status_code | default([200, 302, 301, 403]) }}"
     timeout: 30
   register: _r_validate_route_http
-  loop: "{{ _r_validate_universal.resources | default([]) | selectattr('kind', 'equalto', 'Route') | list }}"
+  loop: "{{ '{{' }} _r_validate_universal.resources | default([]) | selectattr('kind', 'equalto', 'Route') | list {{ '}}' }}"
   retries: "{{ _validate.retries | default(5) }}"
   delay: "{{ _validate.delay | default(10) }}"
 
