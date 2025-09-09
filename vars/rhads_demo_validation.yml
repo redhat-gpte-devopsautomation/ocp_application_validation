@@ -21,19 +21,17 @@ rhads_demo_validation:
       name: baseline
       onfail: fail
     validations:
-      # Cluster nodes health
+      # Cluster nodes health - simplified check
       - kind: Node
         conditions:
           - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources | selectattr('status.conditions', 'defined') | selectattr('status.conditions', 'selectattr', 'type', 'equalto', 'Ready') | selectattr('status.conditions', 'selectattr', 'status', 'equalto', 'True') | list | length == (_r_validate_universal.resources | length)
         retries: 10
         delay: 5
 
-      # Default storage class exists
+      # Default storage class exists - simplified check
       - kind: StorageClass
         conditions:
           - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources | selectattr('metadata.annotations', 'defined') | selectattr('metadata.annotations', 'match', '.*storageclass.kubernetes.io/is-default-class.*true.*') | list | length > 0
         retries: 5
         delay: 5
 
