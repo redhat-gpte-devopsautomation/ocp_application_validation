@@ -183,10 +183,6 @@ ocp_application_validation_list:
         onfail: ignore
 
       # Orchestrator/Sonataflow validation
-      - kind: Deployment
-        name: sonataflow-operator-controller-manager
-        namespace: sonataflow-operator-system
-        onfail: ignore
       - kind: SonataFlowPlatform
         api_version: sonataflow.org/v1alpha08
         name: sonataflow-platform
