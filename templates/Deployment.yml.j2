@@ -33,13 +33,13 @@
   debug:
     msg: |
       Deployment Status:
-      {% for deploy in _r_validate_universal.resources %}
-      - {{ deploy.metadata.name }} ({{ deploy.metadata.namespace }}):
-        Replicas: {{ deploy.status.replicas | default(0) }}
-        Ready: {{ deploy.status.readyReplicas | default(0) }}
-        Available: {{ deploy.status.availableReplicas | default(0) }}
-        Status: {% if deploy.status.readyReplicas | default(0) > 0 %}Ready{% else %}Not Ready{% endif %}
-      {% endfor %}
+      {{ '{%' }} for deploy in _r_validate_universal.resources {{ '%}' }}
+      - {{ '{{' }} deploy.metadata.name {{ '}}' }} ({{ '{{' }} deploy.metadata.namespace {{ '}}' }}):
+        Replicas: {{ '{{' }} deploy.status.replicas | default(0) {{ '}}' }}
+        Ready: {{ '{{' }} deploy.status.readyReplicas | default(0) {{ '}}' }}
+        Available: {{ '{{' }} deploy.status.availableReplicas | default(0) {{ '}}' }}
+        Status: {{ '{%' }} if deploy.status.readyReplicas | default(0) > 0 {{ '%}' }}Ready{{ '{%' }} else {{ '%}' }}Not Ready{{ '{%' }} endif {{ '%}' }}
+      {{ '{%' }} endfor {{ '%}' }}
 
 - name: "set log message"
   set_fact:
@@ -48,13 +48,11 @@
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "Deployment validation result"
   debug:
-    msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+    msg: "[ {{ '{{' }} log_message {{ '}}' }} : {% if success %}PASS{% else %}FAIL{% endif %} ]"
 {% else %}
 - name: "Deployment validation result"
   assert:
     that: not _r_validate_universal.failed | bool
-    {% raw %}
-    fail_msg: "[ {{ log_message }} : FAIL ]"
-    success_msg: "[ {{ log_message }} : PASS ]"
-    {% endraw %}
+    fail_msg: "[ {{ '{{' }} log_message {{ '}}' }} : FAIL ]"
+    success_msg: "[ {{ '{{' }} log_message {{ '}}' }} : PASS ]"
 {% endif %}
