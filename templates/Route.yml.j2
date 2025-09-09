@@ -27,7 +27,8 @@
       Route discovery results for namespace {{ _validate.namespace | default('all') }}:
       - Failed: {{ _r_validate_universal.failed | default(false) }}
       - Resources found: {{ _r_validate_universal.resources | default([]) | length }}
-      - Resources: {{ _r_validate_universal.resources | default([]) | map(attribute='metadata.name') | list if _r_validate_universal.resources is defined else 'None' }}
+      - Resource kinds: {{ _r_validate_universal.resources | default([]) | map(attribute='kind') | list if _r_validate_universal.resources is defined else 'None' }}
+      - Resource names: {{ _r_validate_universal.resources | default([]) | map(attribute='metadata.name') | list if _r_validate_universal.resources is defined else 'None' }}
 
 - name: "Success - routes found"
   when: 
@@ -60,11 +61,12 @@
     {% endraw %}
 {% endif %}
 
-# Test HTTP accessibility for discovered routes
+# Test HTTP accessibility for discovered routes (only if they are actually Routes)
 - name: "[{{ _login.cluster.name |d('Cluster')}}][Route] Testing HTTP accessibility"
   when: 
     - not _r_validate_universal.failed | bool
     - _r_validate_universal.resources | default([]) | length > 0
+    - _r_validate_universal.resources | default([]) | selectattr('kind', 'equalto', 'Route') | list | length > 0
   ignore_errors: true
   uri:
     {% raw %}
@@ -76,12 +78,15 @@
     status_code: "{{ _validate.status_code | default([200, 302, 301, 403]) }}"
     timeout: 30
   register: _r_validate_route_http
-  loop: "{{ _r_validate_universal.resources }}"
+  loop: "{{ _r_validate_universal.resources | default([]) | selectattr('kind', 'equalto', 'Route') | list }}"
   retries: "{{ _validate.retries | default(5) }}"
   delay: "{{ _validate.delay | default(10) }}"
 
 - name: "Route HTTP accessibility result"
-  when: _r_validate_route_http is defined and not _r_validate_route_http.skipped | default(false)
+  when: 
+    - _r_validate_route_http is defined 
+    - not _r_validate_route_http.skipped | default(false)
+    - _r_validate_route_http.results is defined
   block:
     - name: "Success - HTTP accessible"
       when: _r_validate_route_http.results | selectattr('failed', 'equalto', false) | list | length > 0

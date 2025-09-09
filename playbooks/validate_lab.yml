@@ -63,5 +63,3 @@
         - validation_results | selectattr('status', 'equalto', 'FAIL') | list | length > 0
         - _strict | bool
 
-  vars_files:
-    - ../vars/ads_validation_config.yml
