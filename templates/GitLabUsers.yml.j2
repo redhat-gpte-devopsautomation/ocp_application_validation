@@ -1,5 +1,6 @@
 ---
 # GitLab Users validation - verifies users are created via GitLab API
+# Required parameters: namespace, route_name, secret_name
 - name: "[{{ _login.cluster.name |d('Cluster')}}][GitLabUsers] Validating GitLab users in {{ _validate.namespace }}"
   block:
     - name: "Get GitLab root password from secret"

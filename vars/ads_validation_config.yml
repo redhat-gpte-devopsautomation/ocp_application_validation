@@ -62,6 +62,7 @@ ocp_application_validation_list:
       - kind: KeycloakUsers
         namespace: tssc-keycloak
         route_name: keycloak
+        admin_secret_name: keycloak-initial-admin
         realm: ADS
         onfail: ignore
 

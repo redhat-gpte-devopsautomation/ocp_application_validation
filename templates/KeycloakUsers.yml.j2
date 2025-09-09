@@ -1,7 +1,16 @@
 ---
 # Keycloak Users validation - verifies users are created via Keycloak API
+# Required parameters: namespace, route_name, admin_secret_name, realm
 - name: "[{{ _login.cluster.name |d('Cluster')}}][KeycloakUsers] Validating Keycloak users in {{ _validate.namespace }}"
   block:
+    - name: "Get Keycloak admin credentials from secret"
+      kubernetes.core.k8s_info:
+        kind: Secret
+        name: "{{ _validate.admin_secret_name }}"
+        namespace: "{{ _validate.namespace }}"
+      register: _r_keycloak_admin_secret
+      ignore_errors: true
+
     - name: "Get Keycloak route for API endpoint"
       kubernetes.core.k8s_info:
         api_version: route.openshift.io/v1
@@ -13,8 +22,12 @@
 
     - name: "Get Keycloak admin token"
       when: 
+        - not _r_keycloak_admin_secret.failed | default(true)
         - not _r_keycloak_route.failed | default(true)
+        - _r_keycloak_admin_secret.resources | length > 0
         - _r_keycloak_route.resources | length > 0
+        - _r_keycloak_admin_secret.resources[0].data.username is defined
+        - _r_keycloak_admin_secret.resources[0].data.password is defined
       uri:
         {% raw %}
         url: "{{ (_r_keycloak_route.resources[0].spec.tls is defined) | ternary('https', 'http') }}://{{ _r_keycloak_route.resources[0].spec.host }}/auth/realms/master/protocol/openid-connect/token"
@@ -23,8 +36,10 @@
         body_format: form-urlencoded
         body:
           grant_type: password
-          username: admin
-          password: "{{ common_password | default('changeme') }}"
+          {% raw %}
+          username: "{{ _r_keycloak_admin_secret.resources[0].data.username | b64decode }}"
+          password: "{{ _r_keycloak_admin_secret.resources[0].data.password | b64decode }}"
+          {% endraw -%}
           client_id: admin-cli
         validate_certs: false
         return_content: true
@@ -76,7 +91,9 @@
       debug:
         msg: |
           Keycloak User Validation Results:
-          {% if _r_keycloak_route.failed | default(true) %}
+          {% if _r_keycloak_admin_secret.failed | default(true) %}
+          - Admin Secret Access: FAILED ({{ _r_keycloak_admin_secret.msg | default('Admin secret not found') }})
+          {% elif _r_keycloak_route.failed | default(true) %}
           - Route Access: FAILED ({{ _r_keycloak_route.msg | default('Route not found') }})
           {% elif _r_keycloak_token.failed | default(true) %}
           - Token Request: FAILED ({{ _r_keycloak_token.msg | default('Authentication failed') }})
@@ -84,6 +101,7 @@
           - API Call: FAILED ({{ _r_keycloak_users_api.msg | default('API call failed') }})
           {% else %}
           - API Call: SUCCESS
+          - Admin Username: {{ _r_keycloak_admin_secret.resources[0].data.username | b64decode }}
           - Realm: {{ _validate.realm | default('ADS') }}
           - Total Users: {{ _r_keycloak_users_api.json | length }}
           - User List: {{ _r_keycloak_users_api.json | map(attribute='username') | list | join(', ') }}
