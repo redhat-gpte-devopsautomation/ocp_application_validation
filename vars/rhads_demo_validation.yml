@@ -15,7 +15,7 @@ ocp_application_validation_keycloak_realm: ADS
 ocp_application_validation_gitlab_namespace: gitlab
 ocp_application_validation_rhdh_namespace: tssc-dh
 
-rhads_demo_validation:
+ocp_application_validation_list:
   # Baseline cluster validation
   - cluster:
       name: baseline

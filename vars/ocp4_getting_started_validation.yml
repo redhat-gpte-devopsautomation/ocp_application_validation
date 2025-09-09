@@ -10,7 +10,7 @@ ocp_application_validation_auth_type: rhsso
 ocp_application_validation_keycloak_namespace: rhsso
 ocp_application_validation_keycloak_realm: Getting-Started
 
-ocp4_getting_started_validation:
+ocp_application_validation_list:
   # Baseline cluster validation
   - cluster:
       name: baseline

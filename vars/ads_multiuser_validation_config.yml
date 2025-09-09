@@ -2,7 +2,7 @@
 # ADS Multi-User Lab Validation Configuration
 # Validates that dynamic user provisioning worked for N users
 
-ads_multiuser_validation_config:
+ocp_application_validation_list:
   # Baseline infrastructure validation
   - cluster:
       name: baseline

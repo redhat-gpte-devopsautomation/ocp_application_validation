@@ -9,7 +9,7 @@ ocp_application_validation_auth_type: htpasswd
 # Multi-user roadshow - enable user validation to discover users
 ocp_application_validation_multiuser_enabled: true
 
-ocp_virt_roadshow_validation:
+ocp_application_validation_list:
   # Baseline cluster validation
   - cluster:
       name: baseline
