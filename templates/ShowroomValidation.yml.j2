@@ -49,7 +49,7 @@
     method: GET
     return_content: "{{ _validate.validate_content | default(false) }}"
     validate_certs: false
-    status_code: "{{ '{{' }} _validate.status_code | default([200, 302, 301]) | map('int') | list {{ '}}' }}"
+    status_code: [200, 302, 301]
     timeout: 30
   register: _r_showroom_http_tests
   ignore_errors: true

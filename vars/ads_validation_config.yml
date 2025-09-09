@@ -174,8 +174,7 @@ ocp_application_validation_list:
         onfail: ignore
 
       # Showroom validation - discover all showroom* deployments and routes cluster-wide
-      - kind: Showroom
-        status_code: [200, 302, 301]
+      - kind: ShowroomValidation
         onfail: ignore
 
       # Orchestrator/Sonataflow validation

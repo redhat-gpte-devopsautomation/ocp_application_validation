@@ -43,7 +43,7 @@
 
 - name: "set log message"
   set_fact:
-    log_message: "{{ _validate.name | default('Deployments') }} health check in {{ _validate.namespace | default('cluster') }}"
+    log_message: "{{ _validate.name | default('Deployments') }} deployment and pod health validation in {{ _validate.namespace | default('cluster') }}"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "Deployment validation result"
