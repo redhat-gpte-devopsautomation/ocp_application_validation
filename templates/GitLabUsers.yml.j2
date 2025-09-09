@@ -59,21 +59,53 @@
       set_fact:
         success: false
 
-    - name: "Display GitLab users validation result"
+    - name: "Get GitLab projects/repositories"
+      when: 
+        - not _r_gitlab_users_api.failed | default(true)
+        - _r_gitlab_users_api.json is defined
+        - _r_gitlab_users_api.json | length > 1
+      uri:
+        {% raw %}
+        url: "{{ (_r_gitlab_route.resources[0].spec.tls is defined) | ternary('https', 'http') }}://{{ _r_gitlab_route.resources[0].spec.host }}/api/v4/projects?simple=true&per_page=100"
+        {% endraw -%}
+        method: GET
+        headers:
+          {% raw %}
+          Authorization: "Bearer {{ _r_gitlab_secret.resources[0].data.GITLAB_ROOT_PASSWORD | b64decode }}"
+          {% endraw -%}
+        validate_certs: false
+        return_content: true
+        status_code: [200]
+        timeout: 30
+      register: _r_gitlab_projects_api
+      ignore_errors: true
+      retries: "{{ _validate.retries | default(3) }}"
+      delay: "{{ _validate.delay | default(10) }}"
+
+    - name: "Display GitLab users and repositories validation result"
       debug:
         msg: |
-          GitLab User Validation Results:
+          GitLab User and Repository Validation Results:
           {% if _r_gitlab_secret.failed | default(true) %}
           - Secret Access: FAILED ({{ _r_gitlab_secret.msg | default('Secret not found') }})
           {% elif _r_gitlab_route.failed | default(true) %}
           - Route Access: FAILED ({{ _r_gitlab_route.msg | default('Route not found') }})
           {% elif _r_gitlab_users_api.failed | default(true) %}
-          - API Call: FAILED ({{ _r_gitlab_users_api.msg | default('API call failed') }})
+          - User API Call: FAILED ({{ _r_gitlab_users_api.msg | default('API call failed') }})
           {% else %}
-          - API Call: SUCCESS
+          - User API Call: SUCCESS
           - Total Users: {{ _r_gitlab_users_api.json | length }}
           - Non-Root Users: {{ (_r_gitlab_users_api.json | rejectattr('username', 'equalto', 'root') | list | length) }}
           - User List: {{ _r_gitlab_users_api.json | map(attribute='username') | list | join(', ') }}
+          {% if _r_gitlab_projects_api is defined and not _r_gitlab_projects_api.failed | default(true) %}
+          - Projects API Call: SUCCESS
+          - Total Projects: {{ _r_gitlab_projects_api.json | length }}
+          - Project List: {{ _r_gitlab_projects_api.json | map(attribute='name') | list | join(', ') }}
+          {% elif _r_gitlab_projects_api is defined %}
+          - Projects API Call: FAILED ({{ _r_gitlab_projects_api.msg | default('Projects API failed') }})
+          {% else %}
+          - Projects API Call: SKIPPED (user validation failed)
+          {% endif %}
           {% endif %}
 
     - name: "set log message"
