@@ -38,7 +38,8 @@
       set_fact:
         _srn_: "{{ _results_ | length  + 1 }}"
 
-    - name: Print and save results in agnostic_user_data
+    - name: Print and save results (AgnosticD compatibility)
       agnosticd_user_info:
         data:
           ocp_application_validation_results: "{{ _results_ +  ['[%2s] %s' | format(_srn_, _formatted_log_message_)] }}"
+      ignore_errors: true  # Skip if agnosticd_user_info module not available
