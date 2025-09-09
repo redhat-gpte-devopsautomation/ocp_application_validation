@@ -34,39 +34,7 @@ ads_validation_config:
         retries: 5
         delay: 5
 
-  # OpenShift GitOps validation (optional - may not be installed in ADS)
-  - cluster:
-      name: gitops
-      onfail: ignore
-    validations:
-      # GitOps operator (optional - check in openshift-operators namespace)
-      - kind: Deployment
-        name: openshift-gitops-operator-controller-manager
-        namespace: openshift-operators
-        conditions:
-          - _r_validate_universal.resources | length > 0
-        retries: 5
-        delay: 5
-        onfail: ignore
-
-      # ArgoCD server (optional - standard GitOps installation)
-      - kind: Deployment
-        name: openshift-gitops-server
-        namespace: openshift-gitops
-        conditions:
-          - _r_validate_universal.resources | length > 0
-        retries: 5
-        delay: 5
-        onfail: ignore
-
-      # ArgoCD route (optional - standard GitOps installation)
-      - kind: Route
-        name: openshift-gitops-server
-        namespace: openshift-gitops
-        status_code: [200, 302]
-        retries: 5
-        delay: 5
-        onfail: ignore
+  # Skip standard OpenShift GitOps validation - ADS uses tssc-gitops instead
 
   # ArgoCD (tssc-gitops) validation
   - cluster:
