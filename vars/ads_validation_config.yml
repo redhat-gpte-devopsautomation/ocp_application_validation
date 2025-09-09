@@ -28,7 +28,7 @@ ocp_application_validation_list:
 
       # GitLab validation
       - kind: Deployment
-        name: gitlab-webservice-default
+        name: gitlab
         namespace: gitlab
         onfail: ignore
       - kind: Route
