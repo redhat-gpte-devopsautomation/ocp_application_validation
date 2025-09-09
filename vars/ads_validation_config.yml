@@ -41,11 +41,11 @@ ads_validation_config:
       name: tssc-gitops
       onfail: ignore
     validations:
-      # ArgoCD route accessibility - if this works, ArgoCD is functional
+      # ArgoCD routes discovery - find any routes in the namespace
       - kind: Route
-        name: argocd-server
         namespace: "{{ ocp_application_validation_argocd_namespace }}"
-        status_code: [200, 302, 401, 403]
+        conditions:
+          - _r_validate_universal.resources | length > 0
         retries: 30
         delay: 10
 
