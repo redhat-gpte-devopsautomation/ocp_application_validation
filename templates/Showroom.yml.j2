@@ -19,11 +19,13 @@
 
 - name: "Filter showroom deployments and routes"
   set_fact:
-    _filtered_deployments: "{{ '{{' }} _r_showroom_deployments.resources | default([]) | selectattr('metadata.name', 'match', '^showroom.*') | list {{ '}}' }}"
-    _filtered_routes: "{{ '{{' }} _r_showroom_routes.resources | default([]) | selectattr('metadata.name', 'match', '^showroom.*') | list {{ '}}' }}"
-  when: 
-    - not _r_showroom_deployments.failed | bool
-    - not _r_showroom_routes.failed | bool
+    _filtered_deployments: "{{ '{{' }} (_r_showroom_deployments.resources | default([])) if not (_r_showroom_deployments.failed | default(true)) else [] {{ '}}' }}"
+    _filtered_routes: "{{ '{{' }} (_r_showroom_routes.resources | default([])) if not (_r_showroom_routes.failed | default(true)) else [] {{ '}}' }}"
+
+- name: "Apply showroom name filter"
+  set_fact:
+    _filtered_deployments: "{{ '{{' }} _filtered_deployments | selectattr('metadata.name', 'match', '^showroom.*') | list {{ '}}' }}"
+    _filtered_routes: "{{ '{{' }} _filtered_routes | selectattr('metadata.name', 'match', '^showroom.*') | list {{ '}}' }}"
 
 # Debug output to see what showroom resources we found
 - name: "Debug - Show showroom discovery results"
@@ -41,7 +43,6 @@
 
 - name: "Test HTTP connectivity to showroom routes"
   when: 
-    - not _r_showroom_routes.failed | bool
     - _filtered_routes | default([]) | length > 0
   uri:
     url: "{{ '{{' }} (item.spec.tls is defined) | ternary('https', 'http') {{ '}}' }}://{{ '{{' }} item.spec.host {{ '}}' }}"
