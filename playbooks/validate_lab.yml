@@ -26,11 +26,6 @@
         
         # User validation variables are loaded from vars file or command line
 
-    - name: Generate final validation report
-      ansible.builtin.template:
-        src: ads_validation_report.j2
-        dest: "./validation-results.json"
-        mode: '0644'
 
     - name: "=== Validation Summary ==="
       ansible.builtin.debug:
