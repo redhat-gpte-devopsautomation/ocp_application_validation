@@ -14,7 +14,7 @@ ocp_application_validation_argocd_admin_secret: tssc-gitops-cluster
 # Common password for ADS components (override with -e common_password=yourpassword)
 common_password: "{{ common_password | default('changeme') }}"
 
-lab_validation_config:
+ocp_application_validation_list:
   # Single cluster validation - ADS has only one cluster (uses current kubeconfig)
   - cluster:
       name: ads-cluster
