@@ -12,15 +12,19 @@ ocp_application_validation_list:
       name: ads-cluster
       onfail: ignore
     validations:
-      # Baseline cluster validation
+      # PHASE 1: ArgoCD Foundation - MUST sync first before checking anything else
+      - kind: Application
+        namespace: tssc-gitops
+        sync_timeout: 120          # Wait up to 30 minutes for apps to sync
+        delay: 15                  # Check every 15 seconds
+        
+      # PHASE 2: Baseline cluster validation  
       - kind: Node
       - kind: StorageClass
 
-      # ArgoCD (tssc-gitops) validation
+      # ArgoCD infrastructure validation
       - kind: Route
         api_version: route.openshift.io/v1
-        namespace: tssc-gitops
-      - kind: Application
         namespace: tssc-gitops
       - kind: Secret
         name: tssc-gitops-cluster

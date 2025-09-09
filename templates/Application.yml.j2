@@ -1,6 +1,6 @@
 ---
 # Intelligent ArgoCD Application validation - checks existence, sync status, and health
-- name: "[{{ _login.cluster.name |d('Cluster')}}][ArgoCD] Discovering applications in {{ _validate.namespace | default('openshift-gitops') }}"
+- name: "[{{ _login.cluster.name |d('Cluster')}}][ArgoCD] Waiting for applications to sync in {{ _validate.namespace | default('openshift-gitops') }}"
   ignore_errors: true
   kubernetes.core.k8s_info:
     api_version: argoproj.io/v1alpha1
@@ -10,8 +10,13 @@
 {% endif %}
     namespace: "{{ _validate.namespace | default('openshift-gitops') }}"
   register: _r_validate_universal
-  retries: "{{ _validate.retries | default(30) }}"
-  delay: "{{ _validate.delay | default(10) }}"
+  retries: "{{ _validate.sync_timeout | default(60) }}"
+  delay: "{{ _validate.delay | default(15) }}"
+  until:
+    - _r_validate_universal.resources | length > 0
+    # Wait for ALL applications to be Synced AND Healthy
+    - _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length == (_r_validate_universal.resources | length)
+    - _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length == (_r_validate_universal.resources | length)
 
 - name: "Success - applications discovered"
   when: 
@@ -34,7 +39,7 @@
 
 - name: "set log message"
   set_fact:
-    log_message: "ArgoCD applications discovery in {{ _validate.namespace | default('openshift-gitops') }}"
+    log_message: "ArgoCD applications sync and health validation in {{ _validate.namespace | default('openshift-gitops') }}"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "ArgoCD applications discovery result"
