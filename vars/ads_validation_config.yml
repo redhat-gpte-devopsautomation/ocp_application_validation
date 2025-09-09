@@ -36,10 +36,6 @@ ocp_application_validation_list:
         name: gitlab
         namespace: gitlab
         onfail: ignore
-      - kind: StatefulSet
-        name: gitlab-postgresql
-        namespace: gitlab
-        onfail: ignore
       - kind: Secret
         name: gitlab-secret
         namespace: gitlab
