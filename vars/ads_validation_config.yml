@@ -36,15 +36,10 @@ ocp_application_validation_list:
         name: gitlab
         namespace: gitlab
         onfail: ignore
-      - kind: Secret
-        name: gitlab-secret
-        namespace: gitlab
-        onfail: ignore
-
       # User Management Validation
       - kind: GitLabUsers
         namespace: gitlab
-        secret_name: gitlab-secret
+        secret_name: root-user-personal-token
         route_name: gitlab
         onfail: ignore
       - kind: KeycloakUsers
