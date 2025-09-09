@@ -30,7 +30,7 @@
         ocp_application_validation_file_path: "/tmp/lab_validation_{{ ansible_date_time.epoch }}"
         ocp_application_validation_remove_testaments: true
         ocp_application_validation_result_path: "/tmp/lab_validation_results_{{ ansible_date_time.epoch }}/"
-        ocp_application_validation_list: "{{ ads_validation_config | default(ocp4_getting_started_validation | default(ocp_virt_roadshow_validation | default(rhads_demo_validation | default([])))) }}"
+        ocp_application_validation_list: "{{ lab_validation_config | default([]) }}"
         
         # Pass user validation variables to the role
         ocp_application_validation_multiuser_enabled: "{{ _ocp_application_validation_multiuser_enabled }}"
