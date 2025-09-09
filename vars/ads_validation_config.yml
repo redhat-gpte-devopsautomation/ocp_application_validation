@@ -148,11 +148,12 @@ ocp_application_validation_list:
       # Quay validation
       - kind: QuayRegistry
         api_version: quay.redhat.com/v1
-        name: quay
+        name: tssc-quay
         namespace: tssc-quay
         onfail: ignore
       - kind: Route
-        name: quay-quay
+        api_version: route.openshift.io/v1
+        name: tssc-quay-quay
         namespace: tssc-quay
         onfail: ignore
 
