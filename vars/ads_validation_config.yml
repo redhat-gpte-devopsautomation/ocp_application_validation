@@ -192,3 +192,15 @@ ocp_application_validation_list:
         name: sonataflow-platform
         namespace: sonataflow-infra
         onfail: ignore
+      - kind: Deployment
+        name: sonataflow-platform-data-index-service
+        namespace: sonataflow-infra
+        onfail: ignore
+      - kind: Deployment
+        name: sonataflow-platform-jobs-service
+        namespace: sonataflow-infra
+        onfail: ignore
+      - kind: Deployment
+        name: greeting
+        namespace: sonataflow-infra
+        onfail: ignore
