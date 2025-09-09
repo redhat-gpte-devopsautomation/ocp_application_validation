@@ -163,8 +163,14 @@ ocp_application_validation_list:
         namespace: tssc-tpa
         onfail: ignore
       - kind: Route
-        name: trustification-ui
+        api_version: route.openshift.io/v1
         namespace: tssc-tpa
+        onfail: ignore
+
+      # TAS (Trusted Artifact Signer) validation
+      - kind: Route
+        api_version: route.openshift.io/v1
+        namespace: tssc-tas
         onfail: ignore
 
       # Showroom validation
