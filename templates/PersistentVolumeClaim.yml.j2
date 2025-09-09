@@ -1,0 +1,66 @@
+---
+# Intelligent PersistentVolumeClaim validation - checks existence and binding status
+- name: "[{{ _login.cluster.name |d('Cluster')}}][PVC] Checking {{ _validate.name | default('PVCs') }} in {{ _validate.namespace | default('all namespaces') }}"
+  ignore_errors: true
+  k8s_info:
+    {% raw %}
+    host: "{{ _r_auth_cluster.k8s_auth.host | default(omit) }}"
+    username: "{{ _r_auth_cluster.k8s_auth.username | default(omit) }}"
+    api_key: "{{ _r_auth_cluster.k8s_auth.api_key | default(omit) }}"
+    {% endraw -%}
+    validate_certs: false
+    kind: PersistentVolumeClaim
+{% if _validate.name is defined %}
+    name: "{{ _validate.name }}"
+{% endif %}
+{% if _validate.namespace is defined %}
+    namespace: "{{ _validate.namespace }}"
+{% endif %}
+  register: _r_validate_universal
+  retries: "{{ _validate.retries | default(30) }}"
+  delay: "{{ _validate.delay | default(10) }}"
+  until:
+    - _r_validate_universal.resources | length > 0
+    # All PVCs should be bound
+    - _r_validate_universal.resources | selectattr('status.phase', 'defined') | selectattr('status.phase', 'equalto', 'Bound') | list | length == (_r_validate_universal.resources | length)
+
+- name: "Success - PVC bound"
+  when: not _r_validate_universal.failed | bool
+  set_fact:
+    success: true
+
+- name: "No Success - PVC not bound"
+  when: _r_validate_universal.failed | bool
+  set_fact:
+    success: false
+
+- name: "Display PVC status"
+  when: not _r_validate_universal.failed | bool
+  debug:
+    msg: |
+      PersistentVolumeClaim Status:
+      {% for pvc in _r_validate_universal.resources %}
+      - {{ pvc.metadata.name }} ({{ pvc.metadata.namespace }}):
+        Status: {{ pvc.status.phase | default('Unknown') }}
+        Capacity: {{ pvc.status.capacity.storage | default('Unknown') if pvc.status.capacity else 'Unknown' }}
+        Storage Class: {{ pvc.spec.storageClassName | default('default') }}
+        Access Modes: {{ pvc.spec.accessModes | join(', ') if pvc.spec.accessModes else 'Unknown' }}
+      {% endfor %}
+
+- name: "set log message"
+  set_fact:
+    log_message: "{{ _validate.name | default('PVCs') }} binding status in {{ _validate.namespace | default('cluster') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "PVC validation result"
+  debug:
+    msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+- name: "PVC validation result"
+  assert:
+    that: not _r_validate_universal.failed | bool
+    {% raw %}
+    fail_msg: "[ {{ log_message }} : FAIL ]"
+    success_msg: "[ {{ log_message }} : PASS ]"
+    {% endraw %}
+{% endif %}

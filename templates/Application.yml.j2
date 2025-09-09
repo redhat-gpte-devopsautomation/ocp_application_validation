@@ -1,0 +1,116 @@
+---
+# Intelligent ArgoCD Application validation - checks existence, sync status, and health
+- name: "[{{ _login.cluster.name |d('Cluster')}}][ArgoCD] Discovering applications in {{ _validate.namespace | default('openshift-gitops') }}"
+  ignore_errors: true
+  k8s_info:
+    api_version: argoproj.io/v1alpha1
+    {% raw %}
+    host: "{{ _r_auth_cluster.k8s_auth.host | default(omit) }}"
+    username: "{{ _r_auth_cluster.k8s_auth.username | default(omit) }}"
+    api_key: "{{ _r_auth_cluster.k8s_auth.api_key | default(omit) }}"
+    {% endraw -%}
+    validate_certs: false
+    kind: Application
+{% if _validate.name is defined %}
+    name: "{{ _validate.name }}"
+{% endif %}
+    namespace: "{{ _validate.namespace | default('openshift-gitops') }}"
+  register: _r_validate_universal
+  retries: "{{ _validate.retries | default(30) }}"
+  delay: "{{ _validate.delay | default(10) }}"
+  until:
+    - _r_validate_universal.resources | length > 0
+
+- name: "Success - applications discovered"
+  when: not _r_validate_universal.failed | bool
+  set_fact:
+    success: true
+
+- name: "No Success - no applications found"
+  when: _r_validate_universal.failed | bool
+  set_fact:
+    success: false
+
+- name: "set log message"
+  set_fact:
+    log_message: "ArgoCD applications discovery in {{ _validate.namespace | default('openshift-gitops') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "ArgoCD applications discovery result"
+  debug:
+    msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS - Found {{ _r_validate_universal.resources | length }} applications{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+- name: "ArgoCD applications discovery result"
+  assert:
+    that: not _r_validate_universal.failed | bool
+    {% raw %}
+    fail_msg: "[ {{ log_message }} : FAIL ]"
+    success_msg: "[ {{ log_message }} : PASS - Found {{ _r_validate_universal.resources | length }} applications ]"
+    {% endraw %}
+{% endif %}
+
+# Check sync status and health of discovered applications
+- name: "[{{ _login.cluster.name |d('Cluster')}}][ArgoCD] Checking application sync status and health"
+  when: 
+    - not _r_validate_universal.failed | bool
+    - _r_validate_universal.resources | length > 0
+  block:
+    - name: "Check applications sync and health status"
+      set_fact:
+        synced_apps: "{{ _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list }}"
+        healthy_apps: "{{ _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list }}"
+        total_apps: "{{ _r_validate_universal.resources | length }}"
+
+    - name: "Display application status summary"
+      debug:
+        msg: |
+          ArgoCD Applications Status:
+          Total: {{ total_apps }}
+          Synced: {{ synced_apps | length }}
+          Healthy: {{ healthy_apps | length }}
+          
+          Applications:
+          {% for app in _r_validate_universal.resources %}
+          - {{ app.metadata.name }}: 
+            Sync: {{ app.status.sync.status | default('Unknown') }}
+            Health: {{ app.status.health.status | default('Unknown') }}
+          {% endfor %}
+
+    - name: "Success - applications status check"
+      when: 
+        - synced_apps | length == total_apps | int
+        - healthy_apps | length == total_apps | int
+      set_fact:
+        success: true
+
+    - name: "Warning - some applications not synced/healthy"
+      when: 
+        - synced_apps | length != total_apps | int or healthy_apps | length != total_apps | int
+        - synced_apps | length > 0 or healthy_apps | length > 0
+      set_fact:
+        success: true
+
+    - name: "No Success - applications not healthy"
+      when: 
+        - synced_apps | length == 0 
+        - healthy_apps | length == 0
+      set_fact:
+        success: false
+
+    - name: "set log message"
+      set_fact:
+        log_message: "ArgoCD applications sync/health status ({{ synced_apps | length }}/{{ total_apps }} synced, {{ healthy_apps | length }}/{{ total_apps }} healthy)"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+    - name: "ArgoCD applications status result"
+      debug:
+        msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+    - name: "ArgoCD applications status result"
+      assert:
+        that: success | default(false) | bool
+        {% raw %}
+        fail_msg: "[ {{ log_message }} : FAIL ]"
+        success_msg: "[ {{ log_message }} : PASS ]"
+        {% endraw %}
+{% endif %}

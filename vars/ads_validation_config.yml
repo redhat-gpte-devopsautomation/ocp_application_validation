@@ -36,47 +36,43 @@ ads_validation_config:
 
   # Skip standard OpenShift GitOps validation - ADS uses tssc-gitops instead
 
-  # ArgoCD (tssc-gitops) validation
+  # ArgoCD (tssc-gitops) validation - simplified intelligent approach
   - cluster:
       name: tssc-gitops
       onfail: ignore
     validations:
-      # ArgoCD routes discovery - find any routes in the namespace
+      # ArgoCD routes discovery - auto-discovers and tests HTTP accessibility
       - kind: Route
         namespace: "{{ ocp_application_validation_argocd_namespace }}"
-        conditions:
-          - _r_validate_universal.resources | length > 0
         retries: 30
         delay: 10
 
-      # ArgoCD Applications - check if all apps exist and are synced
+      # ArgoCD Applications - auto-checks existence, sync status, and health
       - kind: Application
         namespace: "{{ ocp_application_validation_argocd_namespace }}"
-        api_version: argoproj.io/v1alpha1
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          # Check that all applications are synced and healthy
-          - _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length == (_r_validate_universal.resources | length)
-          - _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length == (_r_validate_universal.resources | length)
         retries: 30
         delay: 10
 
-  # GitLab validation
+      # ArgoCD admin secret - useful for access information
+      - kind: Secret
+        name: "{{ ocp_application_validation_argocd_admin_secret }}"
+        namespace: "{{ ocp_application_validation_argocd_namespace }}"
+        retries: 10
+        delay: 5
+
+  # GitLab validation - simplified intelligent approach
   - cluster:
       name: gitlab
       onfail: ignore
     validations:
-      # GitLab deployment
+      # GitLab deployment - auto-checks readiness and pod health
       - kind: Deployment
         name: gitlab-webservice-default
         namespace: gitlab
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
         retries: 120
         delay: 15
 
-      # GitLab route
+      # GitLab route - auto-discovers and tests HTTP accessibility
       - kind: Route
         name: gitlab
         namespace: gitlab
@@ -84,32 +80,26 @@ ads_validation_config:
         retries: 60
         delay: 15
 
-      # GitLab PostgreSQL
+      # GitLab PostgreSQL - auto-checks StatefulSet readiness
       - kind: StatefulSet
         name: gitlab-postgresql
         namespace: gitlab
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
         retries: 60
         delay: 15
 
-  # Jenkins validation
+  # Jenkins validation - simplified intelligent approach
   - cluster:
       name: jenkins
       onfail: ignore
     validations:
-      # Jenkins deployment
+      # Jenkins deployment - auto-checks readiness and pod health
       - kind: Deployment
         name: jenkins
         namespace: jenkins
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
         retries: 60
         delay: 15
 
-      # Jenkins route
+      # Jenkins route - auto-discovers and tests HTTP accessibility
       - kind: Route
         name: jenkins
         namespace: jenkins
@@ -117,13 +107,10 @@ ads_validation_config:
         retries: 30
         delay: 10
 
-      # Jenkins PVC
+      # Jenkins PVC - auto-checks binding status
       - kind: PersistentVolumeClaim
         name: jenkins
         namespace: jenkins
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.phase == "Bound"
         retries: 30
         delay: 10
 

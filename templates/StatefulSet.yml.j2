@@ -1,0 +1,66 @@
+---
+# Intelligent StatefulSet validation - checks existence, ready replicas, and ordered deployment
+- name: "[{{ _login.cluster.name |d('Cluster')}}][StatefulSet] Checking {{ _validate.name | default('statefulsets') }} in {{ _validate.namespace | default('all namespaces') }}"
+  ignore_errors: true
+  k8s_info:
+    {% raw %}
+    host: "{{ _r_auth_cluster.k8s_auth.host | default(omit) }}"
+    username: "{{ _r_auth_cluster.k8s_auth.username | default(omit) }}"
+    api_key: "{{ _r_auth_cluster.k8s_auth.api_key | default(omit) }}"
+    {% endraw -%}
+    validate_certs: false
+    kind: StatefulSet
+{% if _validate.name is defined %}
+    name: "{{ _validate.name }}"
+{% endif %}
+{% if _validate.namespace is defined %}
+    namespace: "{{ _validate.namespace }}"
+{% endif %}
+  register: _r_validate_universal
+  retries: "{{ _validate.retries | default(90) }}"
+  delay: "{{ _validate.delay | default(15) }}"
+  until:
+    - _r_validate_universal.resources | length > 0
+    # All statefulsets should have at least 1 ready replica
+    - _r_validate_universal.resources | selectattr('status.readyReplicas', 'defined') | selectattr('status.readyReplicas', 'greaterthan', 0) | list | length == (_r_validate_universal.resources | length)
+
+- name: "Success - statefulset ready"
+  when: not _r_validate_universal.failed | bool
+  set_fact:
+    success: true
+
+- name: "No Success - statefulset not ready"
+  when: _r_validate_universal.failed | bool
+  set_fact:
+    success: false
+
+- name: "Display statefulset status"
+  when: not _r_validate_universal.failed | bool
+  debug:
+    msg: |
+      StatefulSet Status:
+      {% for sts in _r_validate_universal.resources %}
+      - {{ sts.metadata.name }} ({{ sts.metadata.namespace }}):
+        Replicas: {{ sts.status.replicas | default(0) }}
+        Ready: {{ sts.status.readyReplicas | default(0) }}
+        Current: {{ sts.status.currentReplicas | default(0) }}
+        Status: {% if sts.status.readyReplicas | default(0) > 0 %}Ready{% else %}Not Ready{% endif %}
+      {% endfor %}
+
+- name: "set log message"
+  set_fact:
+    log_message: "{{ _validate.name | default('StatefulSets') }} health check in {{ _validate.namespace | default('cluster') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "StatefulSet validation result"
+  debug:
+    msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+- name: "StatefulSet validation result"
+  assert:
+    that: not _r_validate_universal.failed | bool
+    {% raw %}
+    fail_msg: "[ {{ log_message }} : FAIL ]"
+    success_msg: "[ {{ log_message }} : PASS ]"
+    {% endraw %}
+{% endif %}

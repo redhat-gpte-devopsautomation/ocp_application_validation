@@ -1,0 +1,102 @@
+---
+# Intelligent Route validation - auto-discovers routes and tests HTTP accessibility
+- name: "[{{ _login.cluster.name |d('Cluster')}}][Route] Discovering routes in {{ _validate.namespace | default('all namespaces') }}"
+  ignore_errors: true
+  k8s_info:
+    {% raw %}
+    host: "{{ _r_auth_cluster.k8s_auth.host | default(omit) }}"
+    username: "{{ _r_auth_cluster.k8s_auth.username | default(omit) }}"
+    api_key: "{{ _r_auth_cluster.k8s_auth.api_key | default(omit) }}"
+    {% endraw -%}
+    validate_certs: false
+    kind: Route
+{% if _validate.name is defined %}
+    name: "{{ _validate.name }}"
+{% endif %}
+{% if _validate.namespace is defined %}
+    namespace: "{{ _validate.namespace }}"
+{% endif %}
+  register: _r_validate_universal
+  retries: "{{ _validate.retries | default(30) }}"
+  delay: "{{ _validate.delay | default(5) }}"
+  until:
+    - _r_validate_universal.resources | length > 0
+
+- name: "Success - set fact"
+  when: not _r_validate_universal.failed | bool
+  set_fact:
+    success: true
+
+- name: "No Success - set fact"
+  when: _r_validate_universal.failed | bool
+  set_fact:
+    success: false
+
+- name: "set log message"
+  set_fact:
+    log_message: "{{ _validate.name | default('Routes') }} discovery in {{ _validate.namespace | default('cluster') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "Route discovery result"
+  debug:
+    msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+- name: "Route discovery result"
+  assert:
+    that: not _r_validate_universal.failed | bool
+    {% raw %}
+    fail_msg: "[ {{ log_message }} : FAIL ]"
+    success_msg: "[ {{ log_message }} : PASS ]"
+    {% endraw %}
+{% endif %}
+
+# Test HTTP accessibility for discovered routes
+- name: "[{{ _login.cluster.name |d('Cluster')}}][Route] Testing HTTP accessibility"
+  when: 
+    - not _r_validate_universal.failed | bool
+    - _r_validate_universal.resources | length > 0
+  ignore_errors: true
+  uri:
+    {% raw %}
+    url: "{{ item.spec.tls is defined | ternary('https', 'http') }}://{{ item.spec.host }}"
+    {% endraw -%}
+    method: GET
+    return_content: false
+    validate_certs: false
+    status_code: "{{ _validate.status_code | default([200, 302, 301, 403]) }}"
+    timeout: 30
+  register: _r_validate_route_http
+  loop: "{{ _r_validate_universal.resources }}"
+  retries: "{{ _validate.retries | default(5) }}"
+  delay: "{{ _validate.delay | default(10) }}"
+
+- name: "Route HTTP accessibility result"
+  when: _r_validate_route_http is defined and not _r_validate_route_http.skipped | default(false)
+  block:
+    - name: "Success - HTTP accessible"
+      when: _r_validate_route_http.results | selectattr('failed', 'equalto', false) | list | length > 0
+      set_fact:
+        success: true
+
+    - name: "No Success - HTTP not accessible"
+      when: _r_validate_route_http.results | selectattr('failed', 'equalto', true) | list | length == (_r_validate_route_http.results | length)
+      set_fact:
+        success: false
+
+    - name: "set log message"
+      set_fact:
+        log_message: "HTTP accessibility test for routes in {{ _validate.namespace | default('cluster') }}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+    - name: "Route HTTP accessibility result"
+      debug:
+        msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+{% else %}
+    - name: "Route HTTP accessibility result"
+      assert:
+        that: success | default(false) | bool
+        {% raw %}
+        fail_msg: "[ {{ log_message }} : FAIL ]"
+        success_msg: "[ {{ log_message }} : PASS ]"
+        {% endraw %}
+{% endif %}
