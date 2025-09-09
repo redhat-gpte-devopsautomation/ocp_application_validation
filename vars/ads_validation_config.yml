@@ -173,14 +173,13 @@ ocp_application_validation_list:
         namespace: tssc-tas
         onfail: ignore
 
-      # Showroom validation
-      - kind: Deployment
-        name: showroom
-        namespace: showroom
-        onfail: ignore
+      # Showroom validation - discover all showroom routes cluster-wide
       - kind: Route
+        api_version: route.openshift.io/v1
         name: showroom
-        namespace: showroom
+        validate_content: true
+        content_check: "lab"
+        status_code: [200]
         onfail: ignore
 
       # Orchestrator/Sonataflow validation
