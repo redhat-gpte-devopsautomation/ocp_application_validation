@@ -53,7 +53,7 @@
         - _r_keycloak_token.json is defined
         - _r_keycloak_token.json.access_token is defined
       uri:
-        url: "{{ '{{' }} (_r_keycloak_route.resources[0].spec.tls is defined) | ternary('https', 'http') {{ '}}' }}://{{ '{{' }} _r_keycloak_route.resources[0].spec.host {{ '}}' }}/admin/realms/{{ _validate.realm | default('ADS') }}/users"
+        url: "{{ '{{' }} (_r_keycloak_route.resources[0].spec.tls is defined) | ternary('https', 'http') {{ '}}' }}://{{ '{{' }} _r_keycloak_route.resources[0].spec.host {{ '}}' }}/admin/realms/{{ _validate.realm | default('master') }}/users"
         method: GET
         headers:
           Authorization: "Bearer {{ '{{' }} _r_keycloak_token.json.access_token {{ '}}' }}"
@@ -95,14 +95,14 @@
           {% else %}
           - API Call: SUCCESS
           - Admin Username: {{ _r_keycloak_admin_secret.resources[0].data.username | b64decode }}
-          - Realm: {{ _validate.realm | default('ADS') }}
+          - Realm: {{ _validate.realm | default('master') }}
           - Total Users: {{ _r_keycloak_users_api.json | length }}
           - User List: {{ _r_keycloak_users_api.json | map(attribute='username') | list | join(', ') }}
           {% endif %}
 
     - name: "set log message"
       set_fact:
-        log_message: "Keycloak users validation in realm {{ _validate.realm | default('ADS') }}"
+        log_message: "Keycloak users validation in realm {{ _validate.realm | default('master') }}"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
     - name: "Keycloak users validation result"
