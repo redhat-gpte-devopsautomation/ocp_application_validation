@@ -37,9 +37,9 @@
 
     - name: Set Serial No
       set_fact:
-        _srn_: "{{ _results_ | length + 1 }}"
+        _srn_: "{{ (_results_ | length + 1) | int }}"
 
     - name: Print and save results (both file and AgnosticD user data)
       agnosticd_user_info:
         data:
-          ocp_application_validation_results: "{{ _results_ + ['[%02d] %s' | format(_srn_, _formatted_log_message_)] }}"
+          ocp_application_validation_results: "{{ _results_ + ['[%02d] %s' | format(_srn_ | int, _formatted_log_message_)] }}"
