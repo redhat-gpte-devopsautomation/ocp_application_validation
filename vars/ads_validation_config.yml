@@ -68,7 +68,8 @@ ocp_application_validation_list:
         namespace: tssc-dh
         onfail: ignore
       - kind: Route
-        name: developer-hub
+        api_version: route.openshift.io/v1
+        name: backstage-developer-hub
         namespace: tssc-dh
         onfail: ignore
       - kind: Deployment
