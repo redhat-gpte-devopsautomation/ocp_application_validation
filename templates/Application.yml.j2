@@ -49,17 +49,21 @@
     {% endraw %}
 {% endif %}
 
-# Check sync status and health of discovered applications
+# Check sync status and health of discovered applications  
+- name: "Check applications sync and health status"
+  when: 
+    - not _r_validate_universal.failed | bool
+    - _r_validate_universal.resources | length > 0
+  set_fact:
+    synced_apps: "{{ _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list }}"
+    healthy_apps: "{{ _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list }}"
+    total_apps: "{{ _r_validate_universal.resources | length }}"
+
 - name: "[{{ _login.cluster.name |d('Cluster')}}][ArgoCD] Checking application sync status and health"
   when: 
     - not _r_validate_universal.failed | bool
     - _r_validate_universal.resources | length > 0
   block:
-    - name: "Check applications sync and health status"
-      set_fact:
-        synced_apps: "{{ _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list }}"
-        healthy_apps: "{{ _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list }}"
-        total_apps: "{{ _r_validate_universal.resources | length }}"
 
     - name: "Display application status summary"
       debug:
@@ -78,14 +82,14 @@
 
     - name: "Success - applications status check"
       when: 
-        - synced_apps | length == total_apps | int
-        - healthy_apps | length == total_apps | int
+        - synced_apps | length == (total_apps | int)
+        - healthy_apps | length == (total_apps | int)
       set_fact:
         success: true
 
     - name: "Warning - some applications not synced/healthy"
       when: 
-        - synced_apps | length != total_apps | int or healthy_apps | length != total_apps | int
+        - synced_apps | length != (total_apps | int) or healthy_apps | length != (total_apps | int)
         - synced_apps | length > 0 or healthy_apps | length > 0
       set_fact:
         success: true
