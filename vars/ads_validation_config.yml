@@ -17,7 +17,7 @@ ocp_application_validation_list:
         namespace: tssc-gitops
         sync_timeout: 60           # Wait up to 15 minutes for apps to sync (or skip if none exist)
         delay: 15                  # Check every 15 seconds
-        auto_discover: true        # Automatically discover and validate resources from ArgoCD apps
+        auto_discover: false       # ADS doesn't use ArgoCD apps for deployment
         
       # PHASE 2: Baseline cluster validation  
       - kind: Node
