@@ -1,0 +1,60 @@
+---
+# VirtualMachine validation with namespace-aware reporting
+- name: "[{{ _login.cluster.name |d('Cluster')}}][VirtualMachine] Checking {{ _validate.name | d('VMs') }} in {{ _validate.namespace | d('namespace') }}"
+  ignore_errors: true
+  kubernetes.core.k8s_info:
+    api_version: "{{ _validate.api_version | default('kubevirt.io/v1') }}"
+    kind: VirtualMachine
+{% if _validate.name is defined %}
+    name: "{{ _validate.name }}"
+{% endif %}
+    namespace: "{{ _validate.namespace }}"
+  register: _r_validate_universal
+  retries: "{{ _validate.retries | default(30) }}"
+  delay: "{{ _validate.delay | default(5) }}"
+
+- name: "Success - VirtualMachine found"
+  when: 
+    - not _r_validate_universal.failed | bool
+    - _r_validate_universal.resources | default([]) | length > 0
+  set_fact:
+    success: true
+
+- name: "No Success - VirtualMachine not found"
+  when: 
+    - _r_validate_universal.failed | bool or (_r_validate_universal.resources | default([]) | length == 0)
+  set_fact:
+    success: false
+
+- name: "Display VirtualMachine status"
+  when: not _r_validate_universal.failed | bool
+  debug:
+    msg: |
+      VirtualMachine Status in {{ _validate.namespace }}:
+      {% if _validate.name is defined %}
+      - VM: {{ _validate.name }}
+        Found: {{ '{{' }} _r_validate_universal.resources | default([]) | length > 0 {{ '}}' }}
+        {% if _r_validate_universal.resources | default([]) | length > 0 %}
+        Status: {{ '{{' }} _r_validate_universal.resources[0].status.printableStatus | default('Unknown') {{ '}}' }}
+        Ready: {{ '{{' }} _r_validate_universal.resources[0].status.ready | default(false) {{ '}}' }}
+        {% endif %}
+      {% else %}
+      - Total VMs found: {{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }}
+      - VM Names: {{ '{{' }} _r_validate_universal.resources | default([]) | map(attribute='metadata.name') | list {{ '}}' }}
+      {% endif %}
+
+- name: "set log message"
+  set_fact:
+    log_message: "{{ _validate.name | default('VirtualMachine') }} validation in {{ _validate.namespace }}{% if not success %} - VM not found in {{ _validate.namespace }}{% endif %}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "VirtualMachine validation result"
+  debug:
+    msg: "[ {{ '{{' }} log_message {{ '}}' }} : {% if success %}PASS{% else %}FAIL{% endif %} ]"
+{% else %}
+- name: "VirtualMachine validation result"
+  assert:
+    that: success | default(false) | bool
+    fail_msg: "[ {{ '{{' }} log_message {{ '}}' }} : FAIL ]"
+    success_msg: "[ {{ '{{' }} log_message {{ '}}' }} : PASS ]"
+{% endif %}
