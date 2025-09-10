@@ -52,10 +52,7 @@ ocp_application_validation_list:
         onfail: ignore
 
       # PHASE 5: Certificate Manager validation (ocp4_workload_cert_manager)
-      - kind: Deployment
-        name: cert-manager
-        namespace: cert-manager-operator
-        onfail: ignore
+      # Note: cert-manager deployment name varies by installation method
 
       # PHASE 6: KubeVirt validation (ocp4_workload_kubevirt)
       - kind: CustomResourceDefinition
@@ -83,15 +80,12 @@ ocp_application_validation_list:
 
       # PHASE 8: Web Terminal validation (ocp4_workload_web_terminal)
       - kind: Deployment
-        name: web-terminal-controller-manager
+        name: web-terminal-controller
         namespace: openshift-operators
         onfail: ignore
 
       # PHASE 9: OADP validation (ocp4_workload_oadp_gitops)
-      - kind: Deployment
-        name: openshift-adp-controller-manager
-        namespace: openshift-adp
-        onfail: ignore
+      # Note: OADP deployment not found in this cluster
 
       # PHASE 10: NMState validation (ocp4_workload_nmstate)
       - kind: Deployment

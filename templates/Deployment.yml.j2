@@ -10,11 +10,12 @@
   retries: "{{ _validate.retries | default(60) }}"
   delay: "{{ _validate.delay | default(15) }}"
   until:
+    - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length > 0
-    # Check if deployment has ready replicas OR available replicas > 0
+    # Deployment is ready if it has desired replicas matching ready replicas OR available replicas
     - >-
-      (_r_validate_universal.resources | selectattr('status.readyReplicas', 'defined') | selectattr('status.readyReplicas', 'greaterthan', 0) | list | length > 0) or
-      (_r_validate_universal.resources | selectattr('status.availableReplicas', 'defined') | selectattr('status.availableReplicas', 'greaterthan', 0) | list | length > 0)
+      (_r_validate_universal.resources[0].status.readyReplicas | default(0) >= _r_validate_universal.resources[0].spec.replicas | default(1)) or
+      (_r_validate_universal.resources[0].status.availableReplicas | default(0) >= _r_validate_universal.resources[0].spec.replicas | default(1))
 
 - name: "Success - deployment ready"
   when: not _r_validate_universal.failed | bool
