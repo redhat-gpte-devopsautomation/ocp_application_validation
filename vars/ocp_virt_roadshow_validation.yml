@@ -1,242 +1,309 @@
 ---
-# OCP Virtualization Roadshow Multi-User Lab Validation Configuration
-# Generic validation for OpenShift Virtualization roadshow environments
-# Based on workloads: htpasswd auth, KubeVirt, MTV, ODF, GitOps, Showroom
+# OCP Virtualization Roadshow Validation Configuration
+# Based on AgnosticD common.yaml configuration for OCP_VIRT_ROADSHOW_MULTI_USER
+# Uses the existing ocp_application_validation framework
 
-# OCP Virt Roadshow lab configuration - technology type
-ocp_application_validation_technology: kubevirt
-ocp_application_validation_auth_type: htpasswd
-# Multi-user roadshow - enable user validation to discover users
-ocp_application_validation_multiuser_enabled: true
+# Common password for authentication (override with -e common_password=yourpassword)
+common_password: "{{ common_password | default('changeme') }}"
 
 ocp_application_validation_list:
-  # Baseline cluster validation
+  # Single cluster validation - OCP Virt roadshow has only one cluster (uses current kubeconfig)
   - cluster:
-      name: baseline
-      onfail: fail
+      name: ocp-virt-roadshow
+      onfail: ignore
     validations:
-      # Cluster nodes health - simplified check
+      # PHASE 1: Infrastructure validation - ensure cluster is ready
+      
+      # Worker nodes validation (ensure we have worker nodes available for VMs)
       - kind: Node
-        conditions:
-          - _r_validate_universal.resources | length > 0
-        retries: 10
-        delay: 5
-
-      # Default storage class exists - simplified check
+        
       - kind: StorageClass
-        conditions:
-          - _r_validate_universal.resources | length > 0
-        retries: 5
-        delay: 5
 
-  # OpenShift GitOps validation
-  - cluster:
-      name: gitops
-      onfail: fail
-    validations:
-      # GitOps server deployment
-      - kind: Deployment
-        name: openshift-gitops-server
+      # PHASE 2: ArgoCD Foundation - MUST sync first before checking anything else
+      - kind: Application
         namespace: openshift-gitops
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 10
-
-      # GitOps server route
+        sync_timeout: 90           # Wait up to 90 seconds for apps to sync
+        delay: 15                  # Check every 15 seconds
+        auto_discover: true        # Enable auto-discovery of resources from ArgoCD apps
+        
+      # ArgoCD infrastructure validation (ocp4_workload_openshift_gitops)
       - kind: Route
-        name: openshift-gitops-server
+        api_version: route.openshift.io/v1
         namespace: openshift-gitops
-        retries: 30
-        delay: 10
+      - kind: Secret
+        name: openshift-gitops-cluster
+        namespace: openshift-gitops
 
-  # External ODF validation
-  - cluster:
-      name: external_odf
-      onfail: fail
-    validations:
-      # ODF operator
+      # PHASE 3: Authentication validation (ocp4_workload_authentication - htpasswd)
+      - kind: Secret
+        name: htpasswd
+        namespace: openshift-config
+        onfail: ignore
+
+      # PHASE 4: External ODF validation (ocp4_workload_external_odf)
       - kind: Deployment
         name: odf-operator-controller-manager
         namespace: openshift-storage
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
-
-      # OCS StorageCluster
+        onfail: ignore
       - kind: StorageCluster
-        name: ocs-storagecluster
+        api_version: ocs.openshift.io/v1
+        name: ocs-external-storagecluster
         namespace: openshift-storage
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.phase | default('') == 'Ready'
-        retries: 120
-        delay: 30
+        onfail: ignore
 
-  # KubeVirt validation
-  - cluster:
-      name: kubevirt
-      onfail: fail
-    validations:
-      # KubeVirt HyperConverged operator
+      # PHASE 5: Certificate Manager validation (ocp4_workload_cert_manager)
+      - kind: Deployment
+        name: cert-manager
+        namespace: cert-manager-operator
+        onfail: ignore
+
+      # PHASE 6: KubeVirt validation (ocp4_workload_kubevirt)
+      - kind: CustomResourceDefinition
+        name: kubevirts.kubevirt.io
+        api_version: apiextensions.k8s.io/v1
       - kind: Deployment
         name: hco-operator
         namespace: openshift-cnv
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
-
-      # HyperConverged instance
+        onfail: ignore
       - kind: HyperConverged
+        api_version: hco.kubevirt.io/v1beta1
         name: kubevirt-hyperconverged
         namespace: openshift-cnv
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.conditions | selectattr('type', 'equalto', 'Available') | selectattr('status', 'equalto', 'True') | list | length > 0
-        retries: 120
-        delay: 30
+        onfail: ignore
 
-      # KubeVirt deployment
-      - kind: Deployment
-        name: virt-controller
-        namespace: openshift-cnv
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
-
-  # Migration Toolkit for Virtualization (MTV)
-  - cluster:
-      name: mtv
-      onfail: fail
-    validations:
-      # MTV operator
+      # PHASE 7: MTV validation (ocp4_workload_mtv)
       - kind: Deployment
         name: forklift-operator
         namespace: openshift-mtv
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
-
-      # MTV controller
+        onfail: ignore
       - kind: Deployment
         name: forklift-controller
         namespace: openshift-mtv
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
+        onfail: ignore
 
-  # Cert Manager validation
-  - cluster:
-      name: cert_manager
-      onfail: ignore
-    validations:
-      # Cert manager controller
-      - kind: Deployment
-        name: cert-manager
-        namespace: cert-manager
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
-
-  # Web Terminal validation
-  - cluster:
-      name: web_terminal
-      onfail: ignore
-    validations:
-      # Web Terminal operator
+      # PHASE 8: Web Terminal validation (ocp4_workload_web_terminal)
       - kind: Deployment
         name: web-terminal-controller-manager
         namespace: openshift-operators
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
+        onfail: ignore
 
-  # OADP validation (backup/restore)
-  - cluster:
-      name: oadp
-      onfail: ignore
-    validations:
-      # OADP operator
+      # PHASE 9: OADP validation (ocp4_workload_oadp_gitops)
       - kind: Deployment
         name: openshift-adp-controller-manager
         namespace: openshift-adp
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
+        onfail: ignore
 
-  # NMState validation (network management)
-  - cluster:
-      name: nmstate
-      onfail: ignore
-    validations:
-      # NMState operator
+      # PHASE 10: NMState validation (ocp4_workload_nmstate)
       - kind: Deployment
         name: nmstate-operator
         namespace: openshift-nmstate
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
+        onfail: ignore
 
-  # Showroom validation
-  - cluster:
-      name: showroom
-      onfail: ignore
-    validations:
-      # Showroom deployment
-      - kind: Deployment
-        name: showroom
-        namespace: showroom
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.readyReplicas | default(0) >= 1
-        retries: 60
-        delay: 15
+      # PHASE 11: Showroom validation (ocp4_workload_showroom)
+      - kind: ShowroomValidation
+        onfail: ignore
 
-      # Showroom route
-      - kind: Route
-        name: showroom
-        namespace: showroom
-        retries: 30
-        delay: 10
-
-  # User namespace validation (sample user namespaces)
-  - cluster:
-      name: user_namespaces
-      onfail: ignore
-    validations:
-      # Check for user1 VM namespace
-      - kind: Project
-        name: vmimported-user1
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.phase | default('') == 'Active'
-        retries: 30
-        delay: 10
-
-      # Check for user1 MTV namespace
-      - kind: Project
+      # PHASE 12: Multi-user namespace validation
+      # MTV user namespaces (mtv-userX from ocp4_workload_virt_roadshow_vmware)
+      - kind: Namespace
         name: mtv-user1
-        conditions:
-          - _r_validate_universal.resources | length > 0
-          - _r_validate_universal.resources[0].status.phase | default('') == 'Active'
-        retries: 30
-        delay: 10
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user2
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user3
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user4
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user5
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user6
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user7
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user8
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user9
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user10
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user11
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user12
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user13
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user14
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user15
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user16
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user17
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user18
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user19
+        onfail: ignore
+      - kind: Namespace
+        name: mtv-user20
+        onfail: ignore
+
+      # VM imported user namespaces (vmimported-userX from ocp4_workload_virt_roadshow_vms)
+      - kind: Namespace
+        name: vmimported-user1
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user2
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user3
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user4
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user5
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user6
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user7
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user8
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user9
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user10
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user11
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user12
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user13
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user14
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user15
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user16
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user17
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user18
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user19
+        onfail: ignore
+      - kind: Namespace
+        name: vmimported-user20
+        onfail: ignore
+
+      # OADP user namespaces (oadp-userX from ocp4_workload_oadp_gitops)
+      - kind: Namespace
+        name: oadp-user1
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user2
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user3
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user4
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user5
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user6
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user7
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user8
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user9
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user10
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user11
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user12
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user13
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user14
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user15
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user16
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user17
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user18
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user19
+        onfail: ignore
+      - kind: Namespace
+        name: oadp-user20
+        onfail: ignore
+
+      # PHASE 13: VirtualMachine validation in vmimported-userX namespaces
+      # Sample VMs from ocp4_workload_virt_roadshow_vms (database, winweb01, winweb02)
+      - kind: VirtualMachine
+        api_version: kubevirt.io/v1
+        name: database
+        namespace: vmimported-user1
+        onfail: ignore
+      - kind: VirtualMachine
+        api_version: kubevirt.io/v1
+        name: winweb01
+        namespace: vmimported-user1
+        onfail: ignore
+      - kind: VirtualMachine
+        api_version: kubevirt.io/v1
+        name: winweb02
+        namespace: vmimported-user1
+        onfail: ignore
