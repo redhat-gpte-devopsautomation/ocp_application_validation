@@ -1,5 +1,105 @@
 ---
-# VirtualMachine validation with namespace-aware reporting
+# Unified VirtualMachine validation - handles single VM, namespace VMs, or multi-user validation
+{% if _validate.namespace_pattern is defined %}
+# Multi-user mode: discover user namespaces and validate expected VMs
+- name: "[{{ _login.cluster.name |d('Cluster')}}][VirtualMachine] Discovering user namespaces with pattern {{ _validate.namespace_pattern }}"
+  ignore_errors: true
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+  register: _r_all_namespaces
+  retries: "{{ _validate.retries | default(10) }}"
+  delay: "{{ _validate.delay | default(5) }}"
+
+- name: "Filter user namespaces"
+  set_fact:
+    _user_namespaces: "{{ '{{' }} _r_all_namespaces.resources | default([]) | selectattr('metadata.name', 'match', _validate.namespace_pattern) | map(attribute='metadata.name') | list {{ '}}' }}"
+
+- name: "Check VirtualMachines in each user namespace"
+  when: _user_namespaces | default([]) | length > 0
+  kubernetes.core.k8s_info:
+    api_version: "{{ _validate.api_version | default('kubevirt.io/v1') }}"
+    kind: VirtualMachine
+    namespace: "{{ '{{' }} item {{ '}}' }}"
+  register: _r_user_vms
+  ignore_errors: true
+  loop: "{{ '{{' }} _user_namespaces | default([]) {{ '}}' }}"
+  retries: "{{ _validate.retries | default(10) }}"
+  delay: "{{ _validate.delay | default(5) }}"
+
+- name: "Initialize VM analysis variables"
+  set_fact:
+    _vm_analysis: "{{ '{{' }} [] {{ '}}' }}"
+    _failed_vm_namespaces: "{{ '{{' }} [] {{ '}}' }}"
+    _failed_vm_details: "{{ '{{' }} [] {{ '}}' }}"
+
+- name: "Analyze VM status per namespace"
+  when: _r_user_vms is defined and _r_user_vms.results is defined
+  set_fact:
+    _vm_analysis: "{{ '{{' }} _vm_analysis | default([]) + [
+      {
+        'namespace': item.item,
+        'vm_count': item.resources | default([]) | length,
+        'vm_names': item.resources | default([]) | map(attribute='metadata.name') | list,
+        'expected_vms': _validate.expected_vms | default(['database', 'winweb01', 'winweb02']),
+        'missing_vms': _validate.expected_vms | default(['database', 'winweb01', 'winweb02']) | difference(item.resources | default([]) | map(attribute='metadata.name') | list),
+        'has_issues': (item.resources | default([]) | length < (_validate.expected_vms | default(['database', 'winweb01', 'winweb02']) | length))
+      }
+    ] {{ '}}' }}"
+  loop: "{{ '{{' }} _r_user_vms.results | default([]) {{ '}}' }}"
+
+- name: "Build namespace-specific failure list"
+  when: _vm_analysis is defined and _vm_analysis | default([]) | length > 0
+  set_fact:
+    _failed_vm_namespaces: "{{ '{{' }} _vm_analysis | selectattr('has_issues', 'equalto', true) | map(attribute='namespace') | list {{ '}}' }}"
+    _failed_vm_details: "{{ '{{' }} [] {{ '}}' }}"
+
+- name: "Build detailed failure messages"
+  when: 
+    - _vm_analysis is defined
+    - _vm_analysis | selectattr('has_issues', 'equalto', true) | list | length > 0
+  set_fact:
+    _failed_vm_details: "{{ '{{' }} _failed_vm_details | default([]) + [item.namespace + ' (missing: ' + (item.missing_vms | join(', ')) + ')'] {{ '}}' }}"
+  loop: "{{ '{{' }} _vm_analysis | selectattr('has_issues', 'equalto', true) | list {{ '}}' }}"
+
+- name: "Success - all expected VMs found in user namespaces"
+  when: 
+    - _failed_vm_namespaces is defined
+    - _failed_vm_namespaces | default([]) | length == 0
+  set_fact:
+    success: true
+
+- name: "No Success - some VMs missing from user namespaces"
+  when: 
+    - _failed_vm_namespaces is defined
+    - _failed_vm_namespaces | default([]) | length > 0
+  set_fact:
+    success: false
+
+- name: "Display comprehensive VM analysis"
+  when: _vm_analysis is defined
+  debug:
+    msg: |
+      Multi-User VirtualMachine Analysis:
+      - User Namespaces Found: {{ '{{' }} _user_namespaces | default([]) | length {{ '}}' }}
+      - Namespace Pattern: {{ _validate.namespace_pattern }}
+      - Expected VMs per User: {{ '{{' }} _validate.expected_vms | default(['database', 'winweb01', 'winweb02']) | join(', ') {{ '}}' }}
+      
+      Per-Namespace Status:
+      {{ '{%' }} for ns_data in _vm_analysis | default([]) {{ '%}' }}
+      - {{ '{{' }} ns_data.namespace {{ '}}' }}: {{ '{{' }} ns_data.vm_count {{ '}}' }}/{{ '{{' }} ns_data.expected_vms | length {{ '}}' }} VMs
+        Found: {{ '{{' }} ns_data.vm_names | join(', ') if ns_data.vm_names else 'None' {{ '}}' }}
+        {% if ns_data.missing_vms | length > 0 %}
+        Missing: {{ '{{' }} ns_data.missing_vms | join(', ') {{ '}}' }}
+        {% endif %}
+      {{ '{%' }} endfor {{ '%}' }}
+
+- name: "set log message"
+  set_fact:
+    log_message: "Multi-user VirtualMachine validation ({{ '{{' }} _user_namespaces | default([]) | length {{ '}}' }} namespaces){% if _failed_vm_details is defined and _failed_vm_details | default([]) | length > 0 %} - Issues: {{ '{{' }} _failed_vm_details | join(', ') {{ '}}' }}{% endif %}"
+
+{% else %}
+# Single VM or namespace mode
 - name: "[{{ _login.cluster.name |d('Cluster')}}][VirtualMachine] Checking {{ _validate.name | d('VMs') }} in {{ _validate.namespace | d('namespace') }}"
   ignore_errors: true
   kubernetes.core.k8s_info:
@@ -46,6 +146,7 @@
 - name: "set log message"
   set_fact:
     log_message: "{{ _validate.name | default('VirtualMachine') }} validation in {{ _validate.namespace }}{% if not success %} - VM not found in {{ _validate.namespace }}{% endif %}"
+{% endif %}
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "VirtualMachine validation result"

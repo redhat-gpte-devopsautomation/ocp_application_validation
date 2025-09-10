@@ -144,7 +144,7 @@ ocp_application_validation_list:
 
       # PHASE 14: Comprehensive VirtualMachine validation across all user namespaces
       # Auto-discovers vmimported-user* namespaces and validates expected VMs
-      - kind: VirtualMachineMultiUser
+      - kind: VirtualMachine
         namespace_pattern: "vmimported-user.*"
         expected_vms: ["database", "winweb01", "winweb02"]
         onfail: ignore
