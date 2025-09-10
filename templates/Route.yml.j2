@@ -66,11 +66,16 @@
     method: GET
     return_content: false
     validate_certs: false
-{% if _validate.status_code is defined and _validate.status_code | length > 0 %}
+{% if _validate.status_code is defined %}
+{% if _validate.status_code | length > 0 %}
     status_code: "{{ '{{' }} _validate.status_code {{ '}}' }}"
 {% else %}
-    # Accept any status code if status_code is empty or not defined
-    status_code: [200, 302, 301, 400, 401, 403, 404, 500, 502, 503]
+    # Empty status_code: [] means accept any status code
+    status_code: [200, 201, 202, 300, 301, 302, 303, 304, 400, 401, 403, 404, 500, 502, 503]
+{% endif %}
+{% else %}
+    # Default: only success status codes
+    status_code: [200, 302, 301]
 {% endif %}
     timeout: 30
   register: _r_route_http_tests
