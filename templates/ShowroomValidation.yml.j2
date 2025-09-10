@@ -91,6 +91,14 @@
         Index.html Available: {{ '{{' }} (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', result.item.metadata.name) | selectattr('failed', 'equalto', false) | list | length > 0) if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 'Not tested' {{ '}}' }}
       {{ '{%' }} endfor {{ '%}' }}
 
+- name: "Initialize showroom analysis variables"
+  set_fact:
+    _http_success_count: 0
+    _content_valid_count: 0
+    _failed_showrooms_list: "{{ '{{' }} [] {{ '}}' }}"
+    _failed_showrooms: "{{ '{{' }} [] {{ '}}' }}"
+    _failed_showrooms_with_ns: "{{ '{{' }} [] {{ '}}' }}"
+
 - name: "Count successful HTTP responses and validate content"
   when: 
     - _r_showroom_http_tests is defined
@@ -100,7 +108,6 @@
     _content_valid_count: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', false) | list | length if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 0 {{ '}}' }}"
     _failed_showrooms_list: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', true) | list if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else [] {{ '}}' }}"
     _failed_showrooms: "{{ '{{' }} _failed_showrooms_list | map(attribute='item.metadata.name') | list {{ '}}' }}"
-    _failed_showrooms_with_ns: "{{ '{{' }} [] {{ '}}' }}"
 
 - name: "Build namespace-aware failed showroom list"
   when: _failed_showrooms_list | default([]) | length > 0
