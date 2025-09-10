@@ -65,52 +65,50 @@
       debug:
         msg: |
           ArgoCD Applications Status:
-          Total: {{ _r_validate_universal.resources | length }}
-          Synced: {{ _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length }}
-          Healthy: {{ _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length }}
+          Total: {{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }}
+          Synced: {{ '{{' }} _r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length {{ '}}' }}
+          Healthy: {{ '{{' }} _r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length {{ '}}' }}
           
           Applications:
-          {% for app in _r_validate_universal.resources %}
-          - {{ app.metadata.name }}: 
-            Sync: {{ app.status.sync.status | default('Unknown') }}
-            Health: {{ app.status.health.status | default('Unknown') }}
-          {% endfor %}
+          {{ '{%' }} for app in _r_validate_universal.resources | default([]) {{ '%}' }}
+          - {{ '{{' }} app.metadata.name {{ '}}' }}: 
+            Sync: {{ '{{' }} app.status.sync.status | default('Unknown') {{ '}}' }}
+            Health: {{ '{{' }} app.status.health.status | default('Unknown') {{ '}}' }}
+          {{ '{%' }} endfor {{ '%}' }}
 
     - name: "Success - all applications synced and healthy"
       when: 
-        - (_r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) == (_r_validate_universal.resources | length)
-        - (_r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) == (_r_validate_universal.resources | length)
+        - (_r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) == (_r_validate_universal.resources | default([]) | length)
+        - (_r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) == (_r_validate_universal.resources | default([]) | length)
       set_fact:
         success: true
 
     - name: "Warning - some applications found but not all synced/healthy"
       when: 
-        - (_r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) != (_r_validate_universal.resources | length) or (_r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) != (_r_validate_universal.resources | length)
-        - (_r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) > 0 or (_r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) > 0
+        - (_r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) != (_r_validate_universal.resources | default([]) | length) or (_r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) != (_r_validate_universal.resources | default([]) | length)
+        - (_r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) > 0 or (_r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) > 0
       set_fact:
         success: true
 
     - name: "No Success - no applications healthy"
       when: 
-        - (_r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) == 0
-        - (_r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) == 0
+        - (_r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) == 0
+        - (_r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length) == 0
       set_fact:
         success: false
 
     - name: "set log message"
       set_fact:
-        log_message: "ArgoCD applications sync/health status ({{ _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length }}/{{ _r_validate_universal.resources | length }} synced, {{ _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length }}/{{ _r_validate_universal.resources | length }} healthy)"
+        log_message: "ArgoCD applications sync/health status ({{ '{{' }} _r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length {{ '}}' }}/{{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }} synced, {{ '{{' }} _r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length {{ '}}' }}/{{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }} healthy)"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
     - name: "ArgoCD applications status result"
       debug:
-        msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS{%else%}FAIL{%endif%} ]"{% endraw %}
+        msg: "[ {{ '{{' }} log_message {{ '}}' }} : {{ '{%' }} if success {{ '%}' }}PASS{{ '{%' }} else {{ '%}' }}FAIL{{ '{%' }} endif {{ '%}' }} ]"
 {% else %}
     - name: "ArgoCD applications status result"
       assert:
         that: success | default(false) | bool
-        {% raw %}
-        fail_msg: "[ {{ log_message }} : FAIL ]"
-        success_msg: "[ {{ log_message }} : PASS ]"
-        {% endraw %}
+        fail_msg: "[ {{ '{{' }} log_message {{ '}}' }} : FAIL ]"
+        success_msg: "[ {{ '{{' }} log_message {{ '}}' }} : PASS ]"
 {% endif %}
