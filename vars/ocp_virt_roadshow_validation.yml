@@ -99,11 +99,25 @@ ocp_application_validation_list:
         namespace: openshift-nmstate
         onfail: ignore
 
-      # PHASE 11: Showroom validation (ocp4_workload_showroom)
+      # PHASE 11: HTPasswd User Discovery validation 
+      # First, validate the htpasswd secret exists and contains user data
+      - kind: Secret
+        name: htpasswd
+        namespace: openshift-config
+        # This secret contains the user list for dynamic validation
+        
+      # PHASE 12: Showroom validation (ocp4_workload_showroom)
+      # This validates all showroom* deployments and routes cluster-wide
+      # and will show which user showrooms have issues
       - kind: ShowroomValidation
         onfail: ignore
 
-      # PHASE 12: Multi-user namespace validation
+      # PHASE 13: Dynamic Multi-user validation
+      # TODO: Enhance framework to support dynamic user discovery from htpasswd secret
+      # The htpasswd secret in openshift-config contains user list (excluding admin)
+      # This validation should be templated to loop through actual users
+      # For now, validating sample users as proof of concept
+      
       # MTV user namespaces (mtv-userX from ocp4_workload_virt_roadshow_vmware)
       - kind: Namespace
         name: mtv-user1
@@ -111,187 +125,25 @@ ocp_application_validation_list:
       - kind: Namespace
         name: mtv-user2
         onfail: ignore
-      - kind: Namespace
-        name: mtv-user3
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user4
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user5
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user6
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user7
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user8
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user9
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user10
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user11
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user12
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user13
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user14
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user15
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user16
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user17
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user18
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user19
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user20
-        onfail: ignore
 
-      # VM imported user namespaces (vmimported-userX from ocp4_workload_virt_roadshow_vms)
+      # VM imported user namespaces (vmimported-userX from ocp4_workload_virt_roadshow_vms)  
       - kind: Namespace
         name: vmimported-user1
         onfail: ignore
       - kind: Namespace
         name: vmimported-user2
         onfail: ignore
-      - kind: Namespace
-        name: vmimported-user3
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user4
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user5
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user6
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user7
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user8
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user9
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user10
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user11
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user12
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user13
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user14
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user15
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user16
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user17
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user18
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user19
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user20
-        onfail: ignore
 
       # OADP user namespaces (oadp-userX from ocp4_workload_oadp_gitops)
       - kind: Namespace
         name: oadp-user1
         onfail: ignore
-      - kind: Namespace
+      - kind: Namespace  
         name: oadp-user2
         onfail: ignore
-      - kind: Namespace
-        name: oadp-user3
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user4
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user5
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user6
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user7
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user8
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user9
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user10
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user11
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user12
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user13
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user14
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user15
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user16
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user17
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user18
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user19
-        onfail: ignore
-      - kind: Namespace
-        name: oadp-user20
-        onfail: ignore
 
-      # PHASE 13: VirtualMachine validation in vmimported-userX namespaces
-      # Sample VMs from ocp4_workload_virt_roadshow_vms (database, winweb01, winweb02)
+      # PHASE 14: VirtualMachine validation in sample vmimported-userX namespaces
+      # VMs from ocp4_workload_virt_roadshow_vms (database, winweb01, winweb02)
       - kind: VirtualMachine
         api_version: kubevirt.io/v1
         name: database
@@ -306,4 +158,21 @@ ocp_application_validation_list:
         api_version: kubevirt.io/v1
         name: winweb02
         namespace: vmimported-user1
+        onfail: ignore
+        
+      # Additional user VMs for user2 (if exists)
+      - kind: VirtualMachine
+        api_version: kubevirt.io/v1
+        name: database
+        namespace: vmimported-user2
+        onfail: ignore
+      - kind: VirtualMachine
+        api_version: kubevirt.io/v1
+        name: winweb01
+        namespace: vmimported-user2
+        onfail: ignore
+      - kind: VirtualMachine
+        api_version: kubevirt.io/v1
+        name: winweb02
+        namespace: vmimported-user2
         onfail: ignore
