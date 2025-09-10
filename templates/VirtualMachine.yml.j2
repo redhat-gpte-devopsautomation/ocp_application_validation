@@ -89,9 +89,9 @@
       {{ '{%' }} for ns_data in _vm_analysis | default([]) {{ '%}' }}
       - {{ '{{' }} ns_data.namespace {{ '}}' }}: {{ '{{' }} ns_data.vm_count {{ '}}' }}/{{ '{{' }} ns_data.expected_vms | length {{ '}}' }} VMs
         Found: {{ '{{' }} ns_data.vm_names | join(', ') if ns_data.vm_names else 'None' {{ '}}' }}
-        {% if ns_data.missing_vms | length > 0 %}
+        {{ '{%' }} if ns_data.missing_vms | length > 0 {{ '%}' }}
         Missing: {{ '{{' }} ns_data.missing_vms | join(', ') {{ '}}' }}
-        {% endif %}
+        {{ '{%' }} endif {{ '%}' }}
       {{ '{%' }} endfor {{ '%}' }}
 
 - name: "set log message"
