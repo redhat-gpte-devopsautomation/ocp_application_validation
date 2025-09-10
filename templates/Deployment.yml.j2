@@ -4,12 +4,8 @@
   ignore_errors: true
   kubernetes.core.k8s_info:
     kind: Deployment
-{% if _validate.name is defined %}
-    name: "{{ _validate.name }}"
-{% endif %}
-{% if _validate.namespace is defined %}
-    namespace: "{{ _validate.namespace }}"
-{% endif %}
+    name: "{{ _validate.name | default(omit) }}"
+    namespace: "{{ _validate.namespace | default(omit) }}"
   register: _r_validate_universal
   retries: "{{ _validate.retries | default(60) }}"
   delay: "{{ _validate.delay | default(15) }}"
