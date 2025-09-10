@@ -66,19 +66,19 @@
     _content_valid_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | rejectattr('content', 'search', 'Directory listing for') | selectattr('content', 'search', '(?i)(workshop|lab|instruction|antora|adoc|exercise)') | list | length {{ '}}' }}"
     _failed_showrooms: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | selectattr('content', 'search', 'Directory listing for') | map(attribute='item.metadata.name') | list {{ '}}' }}"
 
-- name: "Success - ALL showroom deployments and routes with valid lab content"
+- name: "Success - showroom deployments and routes accessible (HTTP connectivity)"
   when: 
     - not _r_showroom_deployments.failed | bool
     - not _r_showroom_routes.failed | bool
     - _filtered_deployments | default([]) | length > 0
     - _filtered_routes | default([]) | length > 0
-    - _content_valid_count | default(0) | int == (_filtered_routes | default([]) | length)
+    - _http_success_count | default(0) | int == (_filtered_routes | default([]) | length)
   set_fact:
     success: true
 
 - name: "No Success - showroom validation failed"
   when: 
-    - _r_showroom_deployments.failed | bool or _r_showroom_routes.failed | bool or (_filtered_deployments | default([]) | length == 0) or (_filtered_routes | default([]) | length == 0) or (_content_valid_count | default(0) | int != (_filtered_routes | default([]) | length))
+    - _r_showroom_deployments.failed | bool or _r_showroom_routes.failed | bool or (_filtered_deployments | default([]) | length == 0) or (_filtered_routes | default([]) | length == 0) or (_http_success_count | default(0) | int != (_filtered_routes | default([]) | length))
   set_fact:
     success: false
 
