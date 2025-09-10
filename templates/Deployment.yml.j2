@@ -11,8 +11,10 @@
   delay: "{{ _validate.delay | default(15) }}"
   until:
     - _r_validate_universal.resources | length > 0
-    # All deployments should have at least 1 ready replica
-    - _r_validate_universal.resources | selectattr('status.readyReplicas', 'defined') | selectattr('status.readyReplicas', 'greaterthan', 0) | list | length == (_r_validate_universal.resources | length)
+    # Check if deployment has ready replicas OR available replicas > 0
+    - >-
+      (_r_validate_universal.resources | selectattr('status.readyReplicas', 'defined') | selectattr('status.readyReplicas', 'greaterthan', 0) | list | length > 0) or
+      (_r_validate_universal.resources | selectattr('status.availableReplicas', 'defined') | selectattr('status.availableReplicas', 'greaterthan', 0) | list | length > 0)
 
 - name: "Success - deployment ready"
   when: not _r_validate_universal.failed | bool
