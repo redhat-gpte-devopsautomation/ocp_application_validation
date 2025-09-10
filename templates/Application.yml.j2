@@ -15,10 +15,11 @@
   until:
     - _r_validate_universal is defined
     - not _r_validate_universal.failed | default(true)
-    - _r_validate_universal.resources | default([]) | length > 0
-    # Wait for ALL applications to be Synced AND Healthy
-    - _r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length == (_r_validate_universal.resources | default([]) | length)
-    - _r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length == (_r_validate_universal.resources | default([]) | length)
+    # Either no apps exist (which is OK) OR apps exist and are all synced+healthy
+    - (_r_validate_universal.resources | default([]) | length == 0) or 
+      ((_r_validate_universal.resources | default([]) | length > 0) and
+       (_r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length == (_r_validate_universal.resources | default([]) | length)) and
+       (_r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length == (_r_validate_universal.resources | default([]) | length)))
 
 - name: "Success - applications discovered"
   when: 

@@ -15,7 +15,7 @@ ocp_application_validation_list:
       # PHASE 1: ArgoCD Foundation - MUST sync first before checking anything else
       - kind: Application
         namespace: tssc-gitops
-        sync_timeout: 120          # Wait up to 30 minutes for apps to sync
+        sync_timeout: 60           # Wait up to 15 minutes for apps to sync (or skip if none exist)
         delay: 15                  # Check every 15 seconds
         
       # PHASE 2: Baseline cluster validation  
