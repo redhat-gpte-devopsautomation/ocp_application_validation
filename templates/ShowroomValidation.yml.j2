@@ -3,6 +3,7 @@
 - name: "[{{ _login.cluster.name |d('Cluster')}}][Showroom] Discovering showroom deployments cluster-wide"
   ignore_errors: true
   kubernetes.core.k8s_info:
+    api_version: apps/v1
     kind: Deployment
   register: _r_showroom_deployments
   retries: "{{ _validate.retries | default(30) }}"
@@ -133,14 +134,14 @@
     _failed_showrooms_list: "{{ '{{' }} [] {{ '}}' }}"
 
 - name: "Identify showrooms with both index.html and content failing"
+  set_fact:
+    _failed_showrooms_list: "{{ '{{' }} _failed_showrooms_list | default([]) + [item] {{ '}}' }}"
+  loop: "{{ '{{' }} _filtered_routes | default([]) {{ '}}' }}"
   when: 
     - _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined
     - _r_showroom_content_tests is defined and _r_showroom_content_tests.results is defined
     - (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', item.metadata.name) | selectattr('failed', 'equalto', false) | list | length == 0)
     - (_r_showroom_content_tests.results | selectattr('item.metadata.name', 'equalto', item.metadata.name) | selectattr('failed', 'equalto', false) | list | length == 0)
-  set_fact:
-    _failed_showrooms_list: "{{ '{{' }} _failed_showrooms_list | default([]) + [item] {{ '}}' }}"
-  loop: "{{ '{{' }} _filtered_routes | default([]) {{ '}}' }}"
 
 - name: "Build namespace-aware failed showroom list"
   when: _failed_showrooms_list | default([]) | length > 0
