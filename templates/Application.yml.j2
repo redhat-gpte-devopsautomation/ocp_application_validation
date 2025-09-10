@@ -22,20 +22,20 @@
 
 - name: "Success - applications discovered"
   when: 
-    - not _r_validate_universal.failed | bool
-    - _r_validate_universal.resources | length > 0
+    - not _r_validate_universal.failed | default(true) | bool
+    - _r_validate_universal.resources | default([]) | length > 0
   set_fact:
     success: true
 
 - name: "Info - no applications found (might be expected)"
   when: 
-    - not _r_validate_universal.failed | bool
-    - _r_validate_universal.resources | length == 0
+    - not _r_validate_universal.failed | default(true) | bool
+    - _r_validate_universal.resources | default([]) | length == 0
   set_fact:
     success: true
 
 - name: "No Success - application discovery failed"
-  when: _r_validate_universal.failed | bool
+  when: _r_validate_universal.failed | default(true) | bool
   set_fact:
     success: false
 
@@ -46,22 +46,20 @@
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "ArgoCD applications discovery result"
   debug:
-    msg: {% raw %}"[ {{ log_message }} : {%if success%}PASS - Found {{ _r_validate_universal.resources | length }} applications{%else%}FAIL{%endif%} ]"{% endraw %}
+    msg: "[ {{ '{{' }} log_message {{ '}}' }} : {% if success %}PASS - Found {{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }} applications{% else %}FAIL{% endif %} ]"
 {% else %}
 - name: "ArgoCD applications discovery result"
   assert:
-    that: not _r_validate_universal.failed | bool
-    {% raw %}
-    fail_msg: "[ {{ log_message }} : FAIL ]"
-    success_msg: "[ {{ log_message }} : PASS - Found {{ _r_validate_universal.resources | length }} applications ]"
-    {% endraw %}
+    that: not _r_validate_universal.failed | default(true) | bool
+    fail_msg: "[ {{ '{{' }} log_message {{ '}}' }} : FAIL ]"
+    success_msg: "[ {{ '{{' }} log_message {{ '}}' }} : PASS - Found {{ '{{' }} _r_validate_universal.resources | default([]) | length {{ '}}' }} applications ]"
 {% endif %}
 
 # Check sync status and health of discovered applications
 - name: "[{{ _login.cluster.name |d('Cluster')}}][ArgoCD] Checking application sync status and health"
   when: 
-    - not _r_validate_universal.failed | bool
-    - _r_validate_universal.resources | length > 0
+    - not _r_validate_universal.failed | default(true) | bool
+    - _r_validate_universal.resources | default([]) | length > 0
   block:
     - name: "Display application status summary"
       debug:
