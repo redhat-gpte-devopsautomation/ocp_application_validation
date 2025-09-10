@@ -57,6 +57,22 @@
   retries: "{{ _validate.retries | default(3) }}"
   delay: "{{ _validate.delay | default(10) }}"
 
+- name: "Test showroom index.html availability"
+  when: 
+    - _filtered_routes | default([]) | length > 0
+  uri:
+    url: "{{ '{{' }} (item.spec.tls is defined) | ternary('https', 'http') {{ '}}' }}://{{ '{{' }} item.spec.host {{ '}}' }}/modules/index.html"
+    method: GET
+    return_content: false
+    validate_certs: false
+    status_code: [200]
+    timeout: 30
+  register: _r_showroom_index_tests
+  ignore_errors: true
+  loop: "{{ '{{' }} _filtered_routes | default([]) {{ '}}' }}"
+  retries: "{{ _validate.retries | default(3) }}"
+  delay: "{{ _validate.delay | default(10) }}"
+
 - name: "Debug HTTP responses content"
   when: 
     - _r_showroom_http_tests is defined
@@ -72,17 +88,19 @@
         Content Preview: {{ '{{' }} (result.content | default('') | length > 100) | ternary(result.content[:100] + '...', result.content | default('No content')) {{ '}}' }}
         Has Directory Listing: {{ '{{' }} 'Directory listing for' in (result.content | default('')) {{ '}}' }}
         Has Redirect Issue: {{ '{{' }} 'redhat-scholars.github.io' in (result.content | default('')) {{ '}}' }}
-        Has Lab Content: {{ '{{' }} (result.content | default('') | regex_search('(?i)(workshop|lab|instruction|antora|adoc|exercise|getting.?started|tutorial|showroom)')) is not none {{ '}}' }}
+        Index.html Available: {{ '{{' }} (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', result.item.metadata.name) | selectattr('failed', 'equalto', false) | list | length > 0) {{ '}}' }}
       {{ '{%' }} endfor {{ '%}' }}
 
 - name: "Count successful HTTP responses and validate content"
   when: 
     - _r_showroom_http_tests is defined
     - _r_showroom_http_tests.results is defined
+    - _r_showroom_index_tests is defined
+    - _r_showroom_index_tests.results is defined
   set_fact:
     _http_success_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
-    _content_valid_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | rejectattr('content', 'search', '(?i)(directory.?listing.?for|redhat-scholars\\.github\\.io)') | selectattr('content', 'search', '(?i)(workshop|lab|instruction|antora|adoc|exercise|getting.?started|tutorial|showroom)') | list | length {{ '}}' }}"
-    _failed_showrooms: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | selectattr('content', 'search', '(?i)(directory.?listing.?for|redhat-scholars\\.github\\.io)') | map(attribute='item.metadata.name') | list {{ '}}' }}"
+    _content_valid_count: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
+    _failed_showrooms: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', true) | map(attribute='item.metadata.name') | list {{ '}}' }}"
 
 - name: "Success - showroom deployments and routes accessible (HTTP connectivity)"
   when: 
@@ -102,7 +120,7 @@
 
 - name: "set log message"
   set_fact:
-    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}{{ '{{' }} (_failed_showrooms is defined and _failed_showrooms | default([]) | length > 0) | ternary(' - Broken showrooms (redirect/listing): ' + (_failed_showrooms | default([]) | join(', ')), '') {{ '}}' }}"
+    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}{{ '{{' }} (_failed_showrooms is defined and _failed_showrooms | default([]) | length > 0) | ternary(' - Broken showrooms (no index.html): ' + (_failed_showrooms | default([]) | join(', ')), '') {{ '}}' }}"
 
 - name: "Display showroom validation summary"
   when: _filtered_routes | default([]) | length > 0
@@ -116,7 +134,7 @@
       - HTTP Successful: {{ '{{' }} _http_success_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
       - Valid Lab Content: {{ '{{' }} _content_valid_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
       {% raw %}{% if _failed_showrooms is defined and _failed_showrooms | default([]) | length > 0 %}{% endraw %}
-      - Broken Showrooms (Directory listing/Redirect): {{ '{{' }} _failed_showrooms | default([]) | join(', ') {{ '}}' }}
+      - Broken Showrooms (No index.html): {{ '{{' }} _failed_showrooms | default([]) | join(', ') {{ '}}' }}
       {% raw %}{% endif %}{% endraw %}
       {% raw %}{% else %}{% endraw %}
       - HTTP Tests: SKIPPED (no routes found)
