@@ -142,37 +142,9 @@ ocp_application_validation_list:
         name: oadp-user2
         onfail: ignore
 
-      # PHASE 14: VirtualMachine validation in sample vmimported-userX namespaces
-      # VMs from ocp4_workload_virt_roadshow_vms (database, winweb01, winweb02)
-      - kind: VirtualMachine
-        api_version: kubevirt.io/v1
-        name: database
-        namespace: vmimported-user1
-        onfail: ignore
-      - kind: VirtualMachine
-        api_version: kubevirt.io/v1
-        name: winweb01
-        namespace: vmimported-user1
-        onfail: ignore
-      - kind: VirtualMachine
-        api_version: kubevirt.io/v1
-        name: winweb02
-        namespace: vmimported-user1
-        onfail: ignore
-        
-      # Additional user VMs for user2 (if exists)
-      - kind: VirtualMachine
-        api_version: kubevirt.io/v1
-        name: database
-        namespace: vmimported-user2
-        onfail: ignore
-      - kind: VirtualMachine
-        api_version: kubevirt.io/v1
-        name: winweb01
-        namespace: vmimported-user2
-        onfail: ignore
-      - kind: VirtualMachine
-        api_version: kubevirt.io/v1
-        name: winweb02
-        namespace: vmimported-user2
+      # PHASE 14: Comprehensive VirtualMachine validation across all user namespaces
+      # Auto-discovers vmimported-user* namespaces and validates expected VMs
+      - kind: VirtualMachineMultiUser
+        namespace_pattern: "vmimported-user.*"
+        expected_vms: ["database", "winweb01", "winweb02"]
         onfail: ignore

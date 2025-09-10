@@ -88,19 +88,17 @@
         Content Preview: {{ '{{' }} (result.content | default('') | length > 100) | ternary(result.content[:100] + '...', result.content | default('No content')) {{ '}}' }}
         Has Directory Listing: {{ '{{' }} 'Directory listing for' in (result.content | default('')) {{ '}}' }}
         Has Redirect Issue: {{ '{{' }} 'redhat-scholars.github.io' in (result.content | default('')) {{ '}}' }}
-        Index.html Available: {{ '{{' }} (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', result.item.metadata.name) | selectattr('failed', 'equalto', false) | list | length > 0) {{ '}}' }}
+        Index.html Available: {{ '{{' }} (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', result.item.metadata.name) | selectattr('failed', 'equalto', false) | list | length > 0) if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 'Not tested' {{ '}}' }}
       {{ '{%' }} endfor {{ '%}' }}
 
 - name: "Count successful HTTP responses and validate content"
   when: 
     - _r_showroom_http_tests is defined
     - _r_showroom_http_tests.results is defined
-    - _r_showroom_index_tests is defined
-    - _r_showroom_index_tests.results is defined
   set_fact:
     _http_success_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
-    _content_valid_count: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
-    _failed_showrooms_list: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', true) | list {{ '}}' }}"
+    _content_valid_count: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', false) | list | length if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 0 {{ '}}' }}"
+    _failed_showrooms_list: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', true) | list if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else [] {{ '}}' }}"
     _failed_showrooms: "{{ '{{' }} _failed_showrooms_list | map(attribute='item.metadata.name') | list {{ '}}' }}"
     _failed_showrooms_with_ns: "{{ '{{' }} [] {{ '}}' }}"
 
