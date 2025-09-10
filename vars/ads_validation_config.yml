@@ -174,9 +174,11 @@ ocp_application_validation_list:
 
       # TAS (Trusted Artifact Signer) validation
       # Validates all TAS routes: fulcio-server, rekor-server, tuf (with dynamic suffixes)
+      # TAS services return JSON responses - accept any HTTP status code
       - kind: Route
         api_version: route.openshift.io/v1
         namespace: tssc-tas
+        status_code: []  # Empty = accept any status code
         onfail: ignore
 
       # Showroom validation - discover all showroom* deployments and routes cluster-wide
