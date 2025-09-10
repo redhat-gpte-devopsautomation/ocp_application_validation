@@ -77,6 +77,71 @@
             Health: {{ '{{' }} app.status.health.status | default('Unknown') {{ '}}' }}
           {{ '{%' }} endfor {{ '%}' }}
 
+    # Auto-discover resources from ArgoCD applications
+    - name: "Discover resources from ArgoCD applications"
+      when: _validate.auto_discover | default(true) | bool
+      block:
+        - name: "Extract target resources from applications"
+          set_fact:
+            _discovered_resources: "{{ '{{' }} _discovered_resources | default([]) + [
+              {
+                'app_name': app.metadata.name,
+                'namespace': app.spec.destination.namespace | default(app.metadata.namespace),
+                'kind': 'Deployment',
+                'name': app.metadata.name,
+                'source': 'argocd-app'
+              },
+              {
+                'app_name': app.metadata.name,
+                'namespace': app.spec.destination.namespace | default(app.metadata.namespace),
+                'kind': 'Service', 
+                'name': app.metadata.name,
+                'source': 'argocd-app'
+              },
+              {
+                'app_name': app.metadata.name,
+                'namespace': app.spec.destination.namespace | default(app.metadata.namespace),
+                'kind': 'Route',
+                'name': app.metadata.name,
+                'source': 'argocd-app'
+              }
+            ] {{ '}}' }}"
+          loop: "{{ '{{' }} _r_validate_universal.resources | default([]) {{ '}}' }}"
+          loop_control:
+            loop_var: app
+
+        - name: "Display discovered resources for validation"
+          debug:
+            msg: |
+              Auto-discovered resources from ArgoCD applications:
+              {{ '{%' }} for resource in _discovered_resources | default([]) {{ '%}' }}
+              - {{ '{{' }} resource.kind {{ '}}' }}/{{ '{{' }} resource.name {{ '}}' }} in {{ '{{' }} resource.namespace {{ '}}' }} (from app: {{ '{{' }} resource.app_name {{ '}}' }})
+              {{ '{%' }} endfor {{ '%}' }}
+
+        - name: "Validate discovered Deployments"
+          include_tasks: "{{ '{{' }} role_path {{ '}}' }}/templates/Deployment.yml.j2"
+          vars:
+            _validate:
+              kind: Deployment
+              name: "{{ '{{' }} item.name {{ '}}' }}"
+              namespace: "{{ '{{' }} item.namespace {{ '}}' }}"
+              retries: 10
+              delay: 5
+          loop: "{{ '{{' }} _discovered_resources | default([]) | selectattr('kind', 'equalto', 'Deployment') | list {{ '}}' }}"
+          ignore_errors: true
+
+        - name: "Validate discovered Routes"
+          include_tasks: "{{ '{{' }} role_path {{ '}}' }}/templates/Route.yml.j2"
+          vars:
+            _validate:
+              kind: Route
+              name: "{{ '{{' }} item.name {{ '}}' }}"
+              namespace: "{{ '{{' }} item.namespace {{ '}}' }}"
+              retries: 5
+              delay: 5
+          loop: "{{ '{{' }} _discovered_resources | default([]) | selectattr('kind', 'equalto', 'Route') | list {{ '}}' }}"
+          ignore_errors: true
+
     - name: "Success - all applications synced and healthy"
       when: 
         - (_r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length) == (_r_validate_universal.resources | default([]) | length)
