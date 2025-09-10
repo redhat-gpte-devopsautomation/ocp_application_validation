@@ -83,29 +83,31 @@
       block:
         - name: "Extract target resources from applications"
           set_fact:
-            _discovered_resources: "{{ '{{' }} _discovered_resources | default([]) + [
-              {
+            _discovered_resources: "{{ '{{' }} _discovered_resources | default([]) + (
+              app.status.resources | default([]) | 
+              selectattr('kind', 'equalto', 'Deployment') |
+              map('combine', {
                 'app_name': app.metadata.name,
                 'namespace': app.spec.destination.namespace | default(app.metadata.namespace),
-                'kind': 'Deployment',
-                'name': app.metadata.name,
                 'source': 'argocd-app'
-              },
-              {
+              }) | list
+            ) + (
+              app.status.resources | default([]) | 
+              selectattr('kind', 'equalto', 'Service') |
+              map('combine', {
                 'app_name': app.metadata.name,
                 'namespace': app.spec.destination.namespace | default(app.metadata.namespace),
-                'kind': 'Service', 
-                'name': app.metadata.name,
                 'source': 'argocd-app'
-              },
-              {
+              }) | list
+            ) + (
+              app.status.resources | default([]) | 
+              selectattr('kind', 'equalto', 'Route') |
+              map('combine', {
                 'app_name': app.metadata.name,
                 'namespace': app.spec.destination.namespace | default(app.metadata.namespace),
-                'kind': 'Route',
-                'name': app.metadata.name,
                 'source': 'argocd-app'
-              }
-            ] {{ '}}' }}"
+              }) | list
+            ) {{ '}}' }}"
           loop: "{{ '{{' }} _r_validate_universal.resources | default([]) {{ '}}' }}"
           loop_control:
             loop_var: app

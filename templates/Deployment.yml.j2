@@ -3,6 +3,7 @@
 - name: "[{{ _login.cluster.name |d('Cluster')}}][Deployment] Checking {{ _validate.name | default('deployments') }} in {{ _validate.namespace | default('all namespaces') }}"
   ignore_errors: true
   kubernetes.core.k8s_info:
+    api_version: apps/v1
     kind: Deployment
     name: "{{ _validate.name | default(omit) }}"
     namespace: "{{ _validate.namespace | default(omit) }}"
