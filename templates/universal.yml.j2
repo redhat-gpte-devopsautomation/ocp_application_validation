@@ -28,6 +28,10 @@
     api_version: sonataflow.org/v1alpha08
 {% elif _validate.kind == 'Keycloak' %}
     api_version: keycloak.org/v1alpha1
+{% elif _validate.kind == 'StorageClass' %}
+    api_version: storage.k8s.io/v1
+{% elif _validate.kind == 'Node' %}
+    api_version: v1
 {% endif %}
     kind: "{{ _validate.kind }}"
     name: "{{ _validate.name | default(omit) }}"
@@ -40,6 +44,20 @@
   {% for condition in  _validate.conditions %}
     - {{ condition }}
   {% endfor %}
+{% elif _validate.kind == 'Node' %}
+    - _r_validate_universal.resources is defined
+    - _r_validate_universal.resources | length > 0
+    # All worker nodes should be Ready
+    - >-
+      (_r_validate_universal.resources | 
+       selectattr('metadata.labels', 'contains', 'node-role.kubernetes.io/worker') |
+       selectattr('status.conditions', 'defined') | list | length) > 0
+{% elif _validate.kind == 'StorageClass' %}
+    - _r_validate_universal.resources is defined
+    - _r_validate_universal.resources | length > 0{% if _validate.name is defined %}
+    # Specific StorageClass should exist{% else %}
+    # At least one default StorageClass should exist
+    - _r_validate_universal.resources | selectattr('metadata.annotations.storageclass.kubernetes.io/is-default-class', 'defined') | selectattr('metadata.annotations.storageclass.kubernetes.io/is-default-class', 'equalto', 'true') | list | length > 0{% endif %}
 {% elif _validate.kind == 'ManagedCluster' %}
     - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length | int > 0
@@ -54,31 +72,23 @@
     - _r_validate_universal.resources[0].status.phase is defined
     - _r_validate_universal.resources[0].status.phase == "Ready"
 {% elif _validate.kind == 'Kafka' or _validate.kind == 'Kafka' %}
+    - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length > 0
     - _r_validate_universal.resources[0].status.conditions is defined
     - _r_validate_universal.resources[0].status.conditions[0].type is defined
     - _r_validate_universal.resources[0].status.conditions[0].type == "Ready"
 {% elif _validate.kind == 'InstallPlan' and _validate.operator is defined %}
+    - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length > 0
     - (_r_validate_universal.resources |  to_json | from_json |
       json_query('[?starts_with(spec.clusterServiceVersionNames[0], `{{_validate.operator}}`)].status.phase') | first | join ) == "Complete"
 {% elif _validate.kind == 'PipelineRun' and _validate.pipeline is defined and _validate.state is defined %}
+    - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length > 0
     - (_r_validate_universal.resources|  to_json | from_json | 
       json_query('[?spec.pipelineRef.name == `{{_validate.pipeline}}`].status.conditions[0].reason') | join ) == "{{_validate.state}}"
-{% elif _validate.kind == 'Node' %}
-    - _r_validate_universal.resources | length > 0
-    # All worker nodes should be Ready
-    - >-
-      (_r_validate_universal.resources | 
-       selectattr('metadata.labels', 'contains', 'node-role.kubernetes.io/worker') |
-       selectattr('status.conditions', 'defined') | list | length) > 0
-{% elif _validate.kind == 'StorageClass' %}
-    - _r_validate_universal.resources | length > 0{% if _validate.name is defined %}
-    # Specific StorageClass should exist{% else %}
-    # At least one default StorageClass should exist
-    - _r_validate_universal.resources | selectattr('metadata.annotations.storageclass.kubernetes.io/is-default-class', 'defined') | selectattr('metadata.annotations.storageclass.kubernetes.io/is-default-class', 'equalto', 'true') | list | length > 0{% endif %}
 {% else %}
+    - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length > 0
 {% endif %}
 
