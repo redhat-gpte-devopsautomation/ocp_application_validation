@@ -13,10 +13,12 @@
   retries: "{{ _validate.sync_timeout | default(60) }}"
   delay: "{{ _validate.delay | default(15) }}"
   until:
-    - _r_validate_universal.resources | length > 0
+    - _r_validate_universal is defined
+    - not _r_validate_universal.failed | default(true)
+    - _r_validate_universal.resources | default([]) | length > 0
     # Wait for ALL applications to be Synced AND Healthy
-    - _r_validate_universal.resources | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length == (_r_validate_universal.resources | length)
-    - _r_validate_universal.resources | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length == (_r_validate_universal.resources | length)
+    - _r_validate_universal.resources | default([]) | selectattr('status.sync.status', 'defined') | selectattr('status.sync.status', 'equalto', 'Synced') | list | length == (_r_validate_universal.resources | default([]) | length)
+    - _r_validate_universal.resources | default([]) | selectattr('status.health.status', 'defined') | selectattr('status.health.status', 'equalto', 'Healthy') | list | length == (_r_validate_universal.resources | default([]) | length)
 
 - name: "Success - applications discovered"
   when: 
