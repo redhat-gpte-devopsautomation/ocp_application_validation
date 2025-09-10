@@ -57,7 +57,7 @@
   retries: "{{ _validate.retries | default(3) }}"
   delay: "{{ _validate.delay | default(10) }}"
 
-- name: "Test showroom index.html availability"
+- name: "Test showroom index.html availability (legacy format)"
   when: 
     - _filtered_routes | default([]) | length > 0
   uri:
@@ -68,6 +68,22 @@
     status_code: [200]
     timeout: 30
   register: _r_showroom_index_tests
+  ignore_errors: true
+  loop: "{{ '{{' }} _filtered_routes | default([]) {{ '}}' }}"
+  retries: "{{ _validate.retries | default(3) }}"
+  delay: "{{ _validate.delay | default(10) }}"
+
+- name: "Test showroom content availability (Antora format)"
+  when: 
+    - _filtered_routes | default([]) | length > 0
+  uri:
+    url: "{{ '{{' }} (item.spec.tls is defined) | ternary('https', 'http') {{ '}}' }}://{{ '{{' }} item.spec.host {{ '}}' }}/content"
+    method: GET
+    return_content: false
+    validate_certs: false
+    status_code: [200]
+    timeout: 30
+  register: _r_showroom_content_tests
   ignore_errors: true
   loop: "{{ '{{' }} _filtered_routes | default([]) {{ '}}' }}"
   retries: "{{ _validate.retries | default(3) }}"
@@ -89,6 +105,7 @@
         Has Directory Listing: {{ '{{' }} 'Directory listing for' in (result.content | default('')) {{ '}}' }}
         Has Redirect Issue: {{ '{{' }} 'redhat-scholars.github.io' in (result.content | default('')) {{ '}}' }}
         Index.html Available: {{ '{{' }} (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', result.item.metadata.name) | selectattr('failed', 'equalto', false) | list | length > 0) if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 'Not tested' {{ '}}' }}
+        Content Available: {{ '{{' }} (_r_showroom_content_tests.results | selectattr('item.metadata.name', 'equalto', result.item.metadata.name) | selectattr('failed', 'equalto', false) | list | length > 0) if _r_showroom_content_tests is defined and _r_showroom_content_tests.results is defined else 'Not tested' {{ '}}' }}
       {{ '{%' }} endfor {{ '%}' }}
 
 - name: "Initialize showroom analysis variables"
@@ -105,14 +122,30 @@
     - _r_showroom_http_tests.results is defined
   set_fact:
     _http_success_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
-    _content_valid_count: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', false) | list | length if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 0 {{ '}}' }}"
-    _failed_showrooms_list: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', true) | list if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else [] {{ '}}' }}"
-    _failed_showrooms: "{{ '{{' }} _failed_showrooms_list | map(attribute='item.metadata.name') | list {{ '}}' }}"
+    _index_valid_count: "{{ '{{' }} _r_showroom_index_tests.results | selectattr('failed', 'equalto', false) | list | length if _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined else 0 {{ '}}' }}"
+    _content_valid_count: "{{ '{{' }} _r_showroom_content_tests.results | selectattr('failed', 'equalto', false) | list | length if _r_showroom_content_tests is defined and _r_showroom_content_tests.results is defined else 0 {{ '}}' }}"
+
+- name: "Build combined content validation results"
+  when: 
+    - _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined
+    - _r_showroom_content_tests is defined and _r_showroom_content_tests.results is defined
+  set_fact:
+    _failed_showrooms_list: "{{ '{{' }} [] {{ '}}' }}"
+
+- name: "Identify showrooms with both index.html and content failing"
+  when: 
+    - _r_showroom_index_tests is defined and _r_showroom_index_tests.results is defined
+    - _r_showroom_content_tests is defined and _r_showroom_content_tests.results is defined
+    - (_r_showroom_index_tests.results | selectattr('item.metadata.name', 'equalto', item.metadata.name) | selectattr('failed', 'equalto', false) | list | length == 0)
+    - (_r_showroom_content_tests.results | selectattr('item.metadata.name', 'equalto', item.metadata.name) | selectattr('failed', 'equalto', false) | list | length == 0)
+  set_fact:
+    _failed_showrooms_list: "{{ '{{' }} _failed_showrooms_list | default([]) + [item] {{ '}}' }}"
+  loop: "{{ '{{' }} _filtered_routes | default([]) {{ '}}' }}"
 
 - name: "Build namespace-aware failed showroom list"
   when: _failed_showrooms_list | default([]) | length > 0
   set_fact:
-    _failed_showrooms_with_ns: "{{ '{{' }} _failed_showrooms_with_ns | default([]) + [item.item.metadata.name + ' (' + item.item.metadata.namespace + ')'] {{ '}}' }}"
+    _failed_showrooms_with_ns: "{{ '{{' }} _failed_showrooms_with_ns | default([]) + [item.metadata.name + ' (' + item.metadata.namespace + ')'] {{ '}}' }}"
   loop: "{{ '{{' }} _failed_showrooms_list | default([]) {{ '}}' }}"
 
 - name: "Success - showroom deployments and routes accessible (HTTP connectivity)"
@@ -145,9 +178,11 @@
       {% raw %}{% if _r_showroom_http_tests is defined and _r_showroom_http_tests.results is defined %}{% endraw %}
       - HTTP Tests Performed: {{ '{{' }} _r_showroom_http_tests.results | default([]) | length {{ '}}' }}
       - HTTP Successful: {{ '{{' }} _http_success_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
-      - Valid Lab Content: {{ '{{' }} _content_valid_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
+      - Valid Lab Content (index.html): {{ '{{' }} _index_valid_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
+      - Valid Lab Content (content): {{ '{{' }} _content_valid_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
+      - Total Valid Content: {{ '{{' }} (_filtered_routes | default([]) | length) - (_failed_showrooms_list | default([]) | length) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
       {% raw %}{% if _failed_showrooms_with_ns is defined and _failed_showrooms_with_ns | default([]) | length > 0 %}{% endraw %}
-      - Broken Showrooms (No index.html): {{ '{{' }} _failed_showrooms_with_ns | default([]) | join(', ') {{ '}}' }}
+      - Broken Showrooms (No content available): {{ '{{' }} _failed_showrooms_with_ns | default([]) | join(', ') {{ '}}' }}
       {% raw %}{% endif %}{% endraw %}
       {% raw %}{% else %}{% endraw %}
       - HTTP Tests: SKIPPED (no routes found)
