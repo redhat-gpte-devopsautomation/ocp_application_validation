@@ -100,6 +100,10 @@
   set_fact:
     success: false
 
+- name: "set log message"
+  set_fact:
+    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}{{ '{{' }} (_failed_showrooms is defined and _failed_showrooms | default([]) | length > 0) | ternary(' - Broken showrooms (redirect/listing): ' + (_failed_showrooms | default([]) | join(', ')), '') {{ '}}' }}"
+
 - name: "Display showroom validation summary"
   when: _filtered_routes | default([]) | length > 0
   debug:
@@ -117,10 +121,6 @@
       {% raw %}{% else %}{% endraw %}
       - HTTP Tests: SKIPPED (no routes found)
       {% raw %}{% endif %}{% endraw %}
-
-- name: "set log message"
-  set_fact:
-    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}{% if _failed_showrooms is defined and _failed_showrooms | default([]) | length > 0 %} - Broken showrooms (redirect/listing): {{ '{{' }} _failed_showrooms | default([]) | join(', ') {{ '}}' }}{% endif %}"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "Showroom validation result"
