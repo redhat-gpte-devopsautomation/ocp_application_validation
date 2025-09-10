@@ -60,7 +60,6 @@
 - name: "Count successful HTTP responses and validate content"
   when: 
     - _r_showroom_http_tests is defined
-    - not _r_showroom_http_tests.skipped | default(false)
     - _r_showroom_http_tests.results is defined
   set_fact:
     _http_success_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
@@ -89,11 +88,11 @@
       Showroom Validation Summary:
       - Showroom Deployments Found: {{ '{{' }} _filtered_deployments | default([]) | length {{ '}}' }}
       - Showroom Routes Found: {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
-      {% if _r_showroom_http_tests is defined and not _r_showroom_http_tests.skipped | default(false) %}
+      {% if _r_showroom_http_tests is defined and _r_showroom_http_tests.results is defined %}
       - HTTP Tests Performed: {{ '{{' }} _r_showroom_http_tests.results | default([]) | length {{ '}}' }}
       - HTTP Successful: {{ '{{' }} _http_success_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
       - Valid Lab Content: {{ '{{' }} _content_valid_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
-      {% if _failed_showrooms | default([]) | length > 0 %}
+      {% if _failed_showrooms is defined and _failed_showrooms | default([]) | length > 0 %}
       - Broken Showrooms (Directory listing): {{ '{{' }} _failed_showrooms | default([]) | join(', ') {{ '}}' }}
       {% endif %}
       {% else %}
