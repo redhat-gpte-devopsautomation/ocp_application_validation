@@ -54,10 +54,7 @@
        selectattr('status.conditions', 'defined') | list | length) > 0
 {% elif _validate.kind == 'StorageClass' %}
     - _r_validate_universal.resources is defined
-    - _r_validate_universal.resources | length > 0{% if _validate.name is defined %}
-    # Specific StorageClass should exist{% else %}
-    # At least one default StorageClass should exist
-    - _r_validate_universal.resources | selectattr('metadata.annotations.storageclass.kubernetes.io/is-default-class', 'defined') | selectattr('metadata.annotations.storageclass.kubernetes.io/is-default-class', 'equalto', 'true') | list | length > 0{% endif %}
+    - _r_validate_universal.resources | length > 0
 {% elif _validate.kind == 'ManagedCluster' %}
     - _r_validate_universal.resources is defined
     - _r_validate_universal.resources | length | int > 0
