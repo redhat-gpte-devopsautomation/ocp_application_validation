@@ -57,14 +57,31 @@
   retries: "{{ _validate.retries | default(3) }}"
   delay: "{{ _validate.delay | default(10) }}"
 
+- name: "Debug HTTP responses content"
+  when: 
+    - _r_showroom_http_tests is defined
+    - _r_showroom_http_tests.results is defined
+  debug:
+    msg: |
+      Showroom HTTP Response Debug:
+      {{ '{%' }} for result in _r_showroom_http_tests.results | default([]) {{ '%}' }}
+      - Route: {{ '{{' }} result.item.metadata.name {{ '}}' }}
+        URL: {{ '{{' }} result.url | default('N/A') {{ '}}' }}
+        Failed: {{ '{{' }} result.failed | default(false) {{ '}}' }}
+        Status: {{ '{{' }} result.status | default('N/A') {{ '}}' }}
+        Content Preview: {{ '{{' }} (result.content | default('') | length > 100) | ternary(result.content[:100] + '...', result.content | default('No content')) {{ '}}' }}
+        Has Directory Listing: {{ '{{' }} 'Directory listing for' in (result.content | default('')) {{ '}}' }}
+        Has Lab Content: {{ '{{' }} (result.content | default('') | regex_search('(?i)(workshop|lab|instruction|antora|adoc|exercise|getting.?started|tutorial)')) is not none {{ '}}' }}
+      {{ '{%' }} endfor {{ '%}' }}
+
 - name: "Count successful HTTP responses and validate content"
   when: 
     - _r_showroom_http_tests is defined
     - _r_showroom_http_tests.results is defined
   set_fact:
     _http_success_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | list | length {{ '}}' }}"
-    _content_valid_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | rejectattr('content', 'search', 'Directory listing for') | selectattr('content', 'search', '(?i)(workshop|lab|instruction|antora|adoc|exercise)') | list | length {{ '}}' }}"
-    _failed_showrooms: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | selectattr('content', 'search', 'Directory listing for') | map(attribute='item.metadata.name') | list {{ '}}' }}"
+    _content_valid_count: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | rejectattr('content', 'search', '(?i)directory.?listing.?for') | selectattr('content', 'search', '(?i)(workshop|lab|instruction|antora|adoc|exercise|getting.?started|tutorial)') | list | length {{ '}}' }}"
+    _failed_showrooms: "{{ '{{' }} _r_showroom_http_tests.results | selectattr('failed', 'equalto', false) | selectattr('content', 'search', '(?i)directory.?listing.?for') | map(attribute='item.metadata.name') | list {{ '}}' }}"
 
 - name: "Success - showroom deployments and routes accessible (HTTP connectivity)"
   when: 
