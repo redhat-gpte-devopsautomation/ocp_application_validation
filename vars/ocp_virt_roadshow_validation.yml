@@ -112,34 +112,22 @@ ocp_application_validation_list:
       - kind: ShowroomValidation
         onfail: ignore
 
-      # PHASE 13: Dynamic Multi-user validation
-      # TODO: Enhance framework to support dynamic user discovery from htpasswd secret
-      # The htpasswd secret in openshift-config contains user list (excluding admin)
-      # This validation should be templated to loop through actual users
-      # For now, validating sample users as proof of concept
+      # PHASE 13: Dynamic Multi-user namespace validation
+      # Uses namespace patterns to auto-discover all user namespaces
       
-      # MTV user namespaces (mtv-userX from ocp4_workload_virt_roadshow_vmware)
-      - kind: Namespace
-        name: mtv-user1
-        onfail: ignore
-      - kind: Namespace
-        name: mtv-user2
+      # MTV user namespaces (mtv-user* from ocp4_workload_virt_roadshow_vmware)
+      - kind: NamespacePattern
+        namespace_pattern: "mtv-user.*"
         onfail: ignore
 
-      # VM imported user namespaces (vmimported-userX from ocp4_workload_virt_roadshow_vms)  
-      - kind: Namespace
-        name: vmimported-user1
-        onfail: ignore
-      - kind: Namespace
-        name: vmimported-user2
+      # VM imported user namespaces (vmimported-user* from ocp4_workload_virt_roadshow_vms)  
+      - kind: NamespacePattern
+        namespace_pattern: "vmimported-user.*"
         onfail: ignore
 
-      # OADP user namespaces (oadp-userX from ocp4_workload_oadp_gitops)
-      - kind: Namespace
-        name: oadp-user1
-        onfail: ignore
-      - kind: Namespace  
-        name: oadp-user2
+      # OADP user namespaces (oadp-user* from ocp4_workload_oadp_gitops)
+      - kind: NamespacePattern
+        namespace_pattern: "oadp-user.*"
         onfail: ignore
 
       # PHASE 14: Comprehensive VirtualMachine validation across all user namespaces

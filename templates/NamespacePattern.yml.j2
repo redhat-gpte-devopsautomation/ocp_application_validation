@@ -1,0 +1,53 @@
+---
+# Dynamic namespace pattern validation - discovers and validates multiple namespaces based on pattern
+- name: "[{{ _login.cluster.name |d('Cluster')}}][NamespacePattern] Discovering namespaces with pattern {{ _validate.namespace_pattern }}"
+  ignore_errors: true
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+  register: _r_all_namespaces
+  retries: "{{ _validate.retries | default(10) }}"
+  delay: "{{ _validate.delay | default(5) }}"
+
+- name: "Filter namespaces matching pattern"
+  set_fact:
+    _matched_namespaces: "{{ _r_all_namespaces.resources | default([]) | selectattr('metadata.name', 'match', _validate.namespace_pattern) | map(attribute='metadata.name') | list }}"
+
+- name: "Success - pattern matched namespaces found"
+  when: 
+    - not _r_all_namespaces.failed | bool
+    - _matched_namespaces | default([]) | length > 0
+  set_fact:
+    success: true
+
+- name: "No Success - no namespaces match pattern or query failed"
+  when: 
+    - _r_all_namespaces.failed | bool or (_matched_namespaces | default([]) | length == 0)
+  set_fact:
+    success: false
+
+- name: "Display namespace pattern results"
+  when: not _r_all_namespaces.failed | bool
+  debug:
+    msg: |
+      Namespace Pattern Validation Results:
+      - Pattern: {{ _validate.namespace_pattern }}
+      - Total Namespaces Found: {{ _r_all_namespaces.resources | default([]) | length }}
+      - Matching Namespaces: {{ _matched_namespaces | default([]) | length }}
+      - Matched Names: {{ _matched_namespaces | default([]) | join(', ') if _matched_namespaces | default([]) | length > 0 else 'None' }}
+
+- name: "set log message"
+  set_fact:
+    log_message: "Namespace pattern '{{ _validate.namespace_pattern }}' validation - {{ _matched_namespaces | default([]) | length }} namespaces found{% if _matched_namespaces | default([]) | length > 0 %}: {{ _matched_namespaces | join(', ') }}{% endif %}"
+
+{% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
+- name: "Namespace pattern validation result"
+  debug:
+    msg: "[ {{ log_message }} : {% if success %}PASS{% else %}FAIL{% endif %} ]"
+{% else %}
+- name: "Namespace pattern validation result"
+  assert:
+    that: success | default(false) | bool
+    fail_msg: "[ {{ log_message }} : FAIL ]"
+    success_msg: "[ {{ log_message }} : PASS ]"
+{% endif %}
