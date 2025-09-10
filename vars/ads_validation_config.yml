@@ -173,6 +173,7 @@ ocp_application_validation_list:
         onfail: ignore
 
       # TAS (Trusted Artifact Signer) validation
+      # Validates all TAS routes: fulcio-server, rekor-server, tuf (with dynamic suffixes)
       - kind: Route
         api_version: route.openshift.io/v1
         namespace: tssc-tas
