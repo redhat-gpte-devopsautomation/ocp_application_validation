@@ -83,25 +83,26 @@
     success: false
 
 - name: "Display showroom validation summary"
+  when: _filtered_routes | default([]) | length > 0
   debug:
     msg: |
       Showroom Validation Summary:
       - Showroom Deployments Found: {{ '{{' }} _filtered_deployments | default([]) | length {{ '}}' }}
       - Showroom Routes Found: {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
-      {% if _r_showroom_http_tests is defined and _r_showroom_http_tests.results is defined %}
+      {% raw %}{% if _r_showroom_http_tests is defined and _r_showroom_http_tests.results is defined %}{% endraw %}
       - HTTP Tests Performed: {{ '{{' }} _r_showroom_http_tests.results | default([]) | length {{ '}}' }}
       - HTTP Successful: {{ '{{' }} _http_success_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
       - Valid Lab Content: {{ '{{' }} _content_valid_count | default(0) {{ '}}' }} / {{ '{{' }} _filtered_routes | default([]) | length {{ '}}' }}
-      {% if _failed_showrooms is defined and _failed_showrooms | default([]) | length > 0 %}
+      {% raw %}{% if _failed_showrooms is defined and _failed_showrooms | default([]) | length > 0 %}{% endraw %}
       - Broken Showrooms (Directory listing): {{ '{{' }} _failed_showrooms | default([]) | join(', ') {{ '}}' }}
-      {% endif %}
-      {% else %}
+      {% raw %}{% endif %}{% endraw %}
+      {% raw %}{% else %}{% endraw %}
       - HTTP Tests: SKIPPED (no routes found)
-      {% endif %}
+      {% raw %}{% endif %}{% endraw %}
 
 - name: "set log message"
   set_fact:
-    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}"
+    log_message: "Showroom deployments and HTTP connectivity validation in {{ _validate.namespace | default('cluster') }}{% if _failed_showrooms is defined and _failed_showrooms | default([]) | length > 0 %} - Broken showrooms: {{ '{{' }} _failed_showrooms | default([]) | join(', ') {{ '}}' }}{% endif %}"
 
 {% if _login.cluster.onfail | default('fail') == "ignore" or _validate.onfail | default('fail') == "ignore" %}
 - name: "Showroom validation result"
